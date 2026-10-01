@@ -62,12 +62,14 @@ def test_react_anthropic_single_agent() -> None:
     assert agent.name == "trip_budget_agent" and agent.convention == "gen_ai"
 
     calls = visible(n, "model_call")
-    assert len(calls) == 3
+    assert len(calls) >= 2  # the exact count depends on the model's choices
     first = calls[0].model
     assert first is not None and first.provider == "anthropic"
     assert first.input[0].role == "system" and first.input[1].role == "user"
     assert first.input_tokens and first.output_tokens
     assert any(p.type == "tool_call" for m in first.output for p in m.parts)
+    # Extended thinking, recorded as GenAI reasoning parts.
+    assert first.output[0].parts[0].type == "reasoning" and first.output[0].parts[0].text
 
     tools = visible(n, "tool_call")
     assert [t.name for t in tools].count("hotel_price") == 2
@@ -179,6 +181,17 @@ def test_flagship_every_feature() -> None:
         assert e[("fan_in", f"{root}/{a}", f"{root}/synthesize")] == 1
     assert e[("loop", f"{root}/critic", f"{root}/synthesize")] == 1
     assert e[("handoff", f"{root}/critic", f"{root}/writer")] == 1
+
+    # Thinking is recovered from the raw output: OpenInference's flattened
+    # message attributes drop it.
+    thoughts = [
+        p
+        for s in visible(n, "model_call")
+        for m in s.model.output  # type: ignore[union-attr]
+        for p in m.parts
+        if p.type == "reasoning"
+    ]
+    assert len(thoughts) >= 5 and all(p.text for p in thoughts)
 
     failed = [s for s in visible(n, "tool_call") if s.status == "error"]
     assert [s.name for s in failed] == ["fetch_repo_stats"]

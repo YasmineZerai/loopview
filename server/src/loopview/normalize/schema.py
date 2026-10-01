@@ -26,8 +26,8 @@ FLOW_KINDS: frozenset[str] = frozenset({"agent", "node", "unknown"})
 
 
 class MessagePart(BaseModel):
-    type: Literal["text", "tool_call", "tool_result", "other"]
-    text: str | None = None  # text parts, and a readable form of "other"
+    type: Literal["text", "reasoning", "tool_call", "tool_result", "other"]
+    text: str | None = None  # text and reasoning (thinking) parts, a readable form of "other"
     id: str | None = None  # tool call id, for tool_call and tool_result
     name: str | None = None  # tool name, for tool_call
     arguments: Any = None  # tool_call

@@ -163,6 +163,8 @@ def _parts(value: Any) -> list[MessagePart]:
                     arguments=maybe_json(p.get("arguments")),
                 )
             )
+        elif kind == "reasoning":
+            parts.append(MessagePart(type="reasoning", text=str(p.get("content", ""))))
         elif kind == "tool_call_response":
             parts.append(
                 MessagePart(

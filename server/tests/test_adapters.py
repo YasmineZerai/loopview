@@ -48,7 +48,7 @@ def test_gen_ai_structured_attributes_and_system_instructions() -> None:
     assert model is not None
     assert [m.role for m in model.input] == ["system", "user"]
     reasoning, call = model.output[0].parts
-    assert reasoning.type == "other" and reasoning.name == "reasoning"
+    assert (reasoning.type, reasoning.text) == ("reasoning", "thinking")
     assert call.type == "tool_call" and call.arguments == {"q": "x"}
 
 

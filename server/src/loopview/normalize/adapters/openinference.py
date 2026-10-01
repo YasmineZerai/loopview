@@ -113,14 +113,49 @@ def _unwrap_tool_output(value: Any) -> Any:
 
 
 def _model_call(attrs: dict[str, Any]) -> ModelCall:
+    output = _messages(attrs, "llm.output_messages.")
+    reasoning = _reasoning_from_raw_output(attrs.get("output.value"))
+    if reasoning:
+        if not output:
+            output = [Message(role="assistant", parts=[])]
+        output[0].parts[:0] = [MessagePart(type="reasoning", text=r) for r in reasoning]
     return ModelCall(
         provider=attrs.get("llm.provider") or attrs.get("llm.system"),
         model=attrs.get("llm.model_name"),
         input=_messages(attrs, "llm.input_messages."),
-        output=_messages(attrs, "llm.output_messages."),
+        output=output,
         input_tokens=as_int(attrs.get("llm.token_count.prompt")),
         output_tokens=as_int(attrs.get("llm.token_count.completion")),
     )
+
+
+def _reasoning_from_raw_output(raw: Any) -> list[str]:
+    """Thinking text from the raw model output.
+
+    The flattened llm.output_messages attributes drop thinking blocks, but the
+    instrumentor also records the raw output (output.value), where the model's
+    content blocks are kept, e.g. LangChain's {"type": "thinking", "thinking": ...}.
+    We look for such blocks anywhere in it rather than depend on one exact layout.
+    """
+    found: list[str] = []
+
+    def walk(node: Any) -> None:
+        if isinstance(node, dict):
+            kind = node.get("type")
+            if kind in ("thinking", "reasoning"):
+                text = node.get("thinking") or node.get("reasoning") or node.get("text")
+                if isinstance(text, str) and text.strip():
+                    found.append(text)
+                    return
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+
+    walk(maybe_json(raw))
+    # A generation can repeat the same message in several places; keep each once.
+    return list(dict.fromkeys(found))
 
 
 # --- flattened messages ------------------------------------------------------------
