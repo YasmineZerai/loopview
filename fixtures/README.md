@@ -14,4 +14,6 @@ through the receiver reproduces the run, including the batching timing.
 | `multi_agent_pydantic.otlp.jsonl` | `examples/multi_agent_pydantic.py` | pydantic-ai-slim 2.52.0 (instrumentation format version 5) |
 | `flagship.otlp.jsonl` | `examples/demo/flagship.py` | langgraph 1.2.12, openinference-instrumentation-langchain 0.1.76 |
 
-All recorded with `claude-haiku-4-5-20251001`. Re-record with `examples/capture.py`.
+All recorded with `claude-haiku-4-5-20251001`. `react_anthropic` and `flagship` use
+extended thinking, so they include the model's reasoning. Re-record with
+`examples/capture.py`.

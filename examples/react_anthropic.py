@@ -92,6 +92,9 @@ def to_genai_parts(content: Any) -> list[dict[str, Any]]:
         block = block if isinstance(block, dict) else block.model_dump()
         if block["type"] == "text":
             parts.append({"type": "text", "content": block["text"]})
+        elif block["type"] == "thinking":
+            # GenAI conventions call this a reasoning part.
+            parts.append({"type": "reasoning", "content": block["thinking"]})
         elif block["type"] == "tool_use":
             parts.append(
                 {"type": "tool_call", "id": block["id"], "name": block["name"],
@@ -142,8 +145,12 @@ def main() -> None:
                     "gen_ai.input.messages": to_genai_messages(messages),
                 },
             ) as chat_span:
+                # Extended thinking, so the trace shows the model's reasoning. Claude
+                # Haiku 4.5 takes a fixed budget (min 1024, below max_tokens). Thinking
+                # blocks go back in the history unchanged with the rest of the reply.
                 response = client.messages.create(
-                    model=model, max_tokens=1024, system=system, tools=TOOLS, messages=messages
+                    model=model, max_tokens=3000, system=system, tools=TOOLS, messages=messages,
+                    thinking={"type": "enabled", "budget_tokens": 1024},
                 )
                 chat_span.set_attribute("gen_ai.response.model", response.model)
                 chat_span.set_attribute("gen_ai.response.id", response.id)

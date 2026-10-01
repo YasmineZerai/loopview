@@ -106,8 +106,23 @@ ANALYSTS = {
 }
 
 
+def text_of(message: AnyMessage) -> str:
+    """The text of a model reply. With thinking on, content is a list of blocks
+    (thinking, text, tool use); only the text blocks are the answer."""
+    if isinstance(message.content, str):
+        return message.content
+    return "".join(b.get("text", "") for b in message.content
+                   if isinstance(b, dict) and b.get("type") == "text")
+
+
 def build_graph():  # type: ignore[no-untyped-def]
+    # The supervisor uses structured output (a forced tool call), which can't be
+    # combined with extended thinking, so it gets a model without thinking.
     llm = ChatAnthropic(model=model_name(), max_tokens=700)
+    # Everyone else thinks before answering, so the demo shows the reasoning.
+    # Claude Haiku 4.5 takes a fixed budget (min 1024, below max_tokens).
+    thinker = ChatAnthropic(model=model_name(), max_tokens=2500,
+                            thinking={"type": "enabled", "budget_tokens": 1024})
 
     def supervisor(state: State) -> dict:
         plan = llm.with_structured_output(Plan).invoke([
@@ -121,7 +136,7 @@ def build_graph():  # type: ignore[no-untyped-def]
         def run(state: State) -> dict:
             brief = f"{state['briefs'][brief_key]}\n\nTask context: {state['task']}"
             result = agent.invoke({"messages": [HumanMessage(brief)]})
-            return {"findings": {name: str(result["messages"][-1].content)}}
+            return {"findings": {name: text_of(result["messages"][-1])}}
         return run
 
     def synthesize(state: State) -> dict:
@@ -131,17 +146,17 @@ def build_graph():  # type: ignore[no-untyped-def]
                   HumanMessage(f"Task: {state['task']}\n\nFindings:\n{notes}")]
         if state.get("feedback"):
             prompt.append(HumanMessage(f"Revise it. Reviewer feedback: {state['feedback']}"))
-        return {"synthesis": str(llm.invoke(prompt).content)}
+        return {"synthesis": text_of(thinker.invoke(prompt))}
 
     def critic(state: State) -> dict:
         reviews = state.get("reviews", 0) + 1
         if reviews == 1:
-            feedback = llm.invoke([
+            feedback = thinker.invoke([
                 SystemMessage("You are a demanding reviewer. In one sentence, name the most "
                               "important thing this comparison should address better."),
                 HumanMessage(state["synthesis"]),
-            ]).content
-            return {"reviews": reviews, "feedback": str(feedback)}
+            ])
+            return {"reviews": reviews, "feedback": text_of(feedback)}
         return {"reviews": reviews, "feedback": ""}
 
     def after_critic(state: State) -> Literal["synthesize", "writer"]:
@@ -153,18 +168,18 @@ def build_graph():  # type: ignore[no-untyped-def]
         "comparison table (columns: Database, Speed, Operations, Ecosystem), then give the "
         "recommendation in at most 80 words, followed by the table.",
         [t.format_table],
-        llm,
+        thinker,
     )
 
     def writer(state: State) -> dict:
         result = writer_agent.invoke({"messages": [HumanMessage(
             f"Task: {state['task']}\n\nApproved comparison:\n{state['synthesis']}")]})
-        return {"answer": str(result["messages"][-1].content)}
+        return {"answer": text_of(result["messages"][-1])}
 
     graph = StateGraph(State)
     graph.add_node("supervisor", supervisor)
     for name, (brief_key, tools, instructions) in ANALYSTS.items():
-        agent = build_agent(name, instructions, tools, llm)
+        agent = build_agent(name, instructions, tools, thinker)
         graph.add_node(name, analyst_node(name, brief_key, agent))
         graph.add_edge("supervisor", name)  # fan out: the three run in parallel
     graph.add_node("synthesize", synthesize)
