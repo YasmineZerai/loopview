@@ -1,0 +1,43 @@
+// Dev-only: record frames of the flagship demo replay, for the README GIF.
+// Usage: start a fresh server, then  node scripts/record-demo.mjs <base url> <out dir>
+// Then assemble with scripts/make_gif.py.
+//
+// Replay time is stepped evenly through the page's store (window.__loopview)
+// instead of playing in real time, because screenshots of an animating page take
+// an uneven amount of time and would give a jerky GIF.
+import { writeFile } from 'node:fs/promises'
+import { chromium } from 'playwright'
+
+const [base = 'http://127.0.0.1:4400', out = 'frames', stepMs = '220'] = process.argv.slice(2)
+const browser = await chromium.launch({ channel: process.env.PW_CHANNEL ?? 'msedge' })
+const page = await browser.newPage({ viewport: { width: 1440, height: 860 } })
+await page.goto(base)
+await page.waitForTimeout(900)
+await page.getByRole('button', { name: /Load the demo run/ }).click()
+await page.waitForTimeout(1800)
+
+const { start, end } = await page.evaluate(() => {
+  const s = window.__loopview.getState()
+  const run = s.loaded.get(s.selectedRunId).run
+  return { start: run.start_ns, end: run.end_ns }
+})
+
+const frames = []
+let i = 0
+const shot = async (hold) => {
+  const path = `${out}/f${String(i++).padStart(3, '0')}.png`
+  await page.screenshot({ path })
+  frames.push({ path, hold })
+}
+await shot(1200) // the finished run, before replay
+for (let t = start; t <= end; t += Number(stepMs) * 1e6) {
+  await page.evaluate((time) => window.__loopview.getState().setPlayback({ time, playing: false }), t)
+  await page.waitForTimeout(140) // let particles and flashes start
+  await shot(110)
+}
+await page.evaluate(() => window.__loopview.getState().setPlayback({ time: Infinity, playing: false }))
+await page.waitForTimeout(600)
+await shot(2600)
+await writeFile(`${out}/frames.json`, JSON.stringify(frames))
+console.log(`${frames.length} frames`)
+await browser.close()
