@@ -32,7 +32,9 @@ const shot = async (hold) => {
 await shot(1200) // the finished run, before replay
 for (let t = start; t <= end; t += Number(stepMs) * 1e6) {
   await page.evaluate((time) => window.__loopview.getState().setPlayback({ time, playing: false }), t)
-  await page.waitForTimeout(140) // let particles and flashes start
+  // Long enough for the camera to finish re-framing a grown graph (400 ms),
+  // short enough to catch particles still travelling.
+  await page.waitForTimeout(430)
   await shot(110)
 }
 await page.evaluate(() => window.__loopview.getState().setPlayback({ time: Infinity, playing: false }))
