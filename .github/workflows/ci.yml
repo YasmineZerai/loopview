@@ -35,3 +35,32 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+
+  sdk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sdk
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --locked
+      - run: uv run pytest
+
+  package:
+    # The wheel must ship the built UI, so `uvx loopview` works without Node.
+    needs: [server, ui]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: astral-sh/setup-uv@v6
+      - run: cd ui && npm ci && npm run build
+      - run: cd server && uv build
+      - name: Wheel contains the UI and starts
+        run: |
+          unzip -l server/dist/*.whl | grep -q 'loopview/static/index.html'
+          unzip -l server/dist/*.whl | grep -q 'loopview/demo_data/flagship.otlp.jsonl'
+          uvx --from server/dist/*.whl loopview --version
