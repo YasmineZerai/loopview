@@ -117,11 +117,20 @@ provider.add_span_processor(LiveStartProcessor())
 
 Steps then light up the moment they begin, with their real names. It sends from a background thread and drops reports if loopview isn't running, so it never slows the agent down. Some instrumentations (OpenInference for LangChain) only set attributes when a span ends; for those, a started step is shown by position (a direct child of a graph or agent) and gets its full detail when it ends.
 
+## What you see
+
+- **The graph** fills the middle: agents as coloured groups, steps as cards, tools as small pills on the step that called them, loops as arcs with a counter. Open a card (its chevron, or `e` for all of them) to read its calls right in the graph: thinking, replies, tool arguments and results, run by run.
+- **The activity feed** on the right shows what the agents think, say and do, in order: each model call's thinking (when the model uses extended thinking), its reply, the tools it asked for, and each tool call with its arguments and its result or error. Hover an entry to find its step in the graph; click to open the step's details.
+- **The details panel** opens when you click a step: every execution, each model call as a conversation, and each tool call with its full arguments and result.
+- **The timeline** is hidden until you want it (the small control at the bottom, or `t`).
+
+Light and dark themes are both available (the button at the top right).
+
 ## Replay, import and export
 
-Any finished run can be replayed at 0.5x, 1x, 2x or 4x with a scrubber. Replay uses span timestamps, so it shows what really happened, without the exporter's batching delays. Runs export as JSONL (one OTLP request per line) and import through the run list, so you can share a trace.
+Any finished run can be replayed at 0.5x, 1x, 2x or 4x with a scrubber. Replay uses span timestamps, so it shows what really happened, without the exporter's batching delays. The graph and the activity feed follow the same clock. Runs export as JSONL (one OTLP request per line) and import through the run list, so you can share a trace.
 
-Keyboard: `space` play or pause, `left` and `right` step through events, `f` fit the graph to the screen, `esc` close the details panel.
+Keyboard: `space` play or pause, `left` and `right` step through events, `t` show or hide the timeline, `a` show or hide the activity feed, `e` expand or collapse every card, `f` fit the graph to the screen, `esc` close the details panel.
 
 ## Limitations
 
@@ -130,6 +139,7 @@ Keyboard: `space` play or pause, `left` and `right` step through events, `f` fit
 - Traces that span several services: a span whose parent lives in another service is shown under an inferred parent named after the service.
 - Without `loopview-sdk`, a running step with no finished children is not visible until it ends.
 - Message content is shown only if your instrumentation records it (both conventions make it opt-in).
+- Thinking appears only when the model uses extended thinking. OpenInference's message attributes drop thinking, so for LangChain it is read from the raw model output the instrumentor also records.
 - Runs are kept in memory (200 by default); use `--persist` to keep them across restarts.
 
 ## Development
@@ -157,7 +167,6 @@ Design decisions, with what was rejected and why, are in [DECISIONS.md](DECISION
 
 - OTLP over gRPC.
 - Fixtures for the OpenAI SDK, OpenAI Agents SDK and more frameworks.
-- Light theme polish.
 - A TypeScript `loopview-sdk` for Node agents.
 - Diffing two runs of the same agent.
 

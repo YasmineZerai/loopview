@@ -128,3 +128,24 @@ One short entry per significant decision: what was chosen, what was rejected, an
 
 ## D31. Replay and live share one model
 - The UI builds the graph from the normalized run at a moment `t` (`buildGraph(run, t)`). Live is `t = infinity`; replay advances `t` on each animation frame. Particles and tool flashes fire when an edge's or a tool's count goes up, which works the same way live and in replay.
+
+## D32. Thinking is a message part of its own
+- **Chosen:** a `reasoning` part type in the schema, next to text and tool calls. The GenAI adapter maps the spec's `reasoning` part to it. The demo agents run with extended thinking (Claude Haiku 4.5: `budget_tokens` 1024; the supervisor stays without thinking because structured output forces a tool call, which thinking doesn't allow).
+- **OpenInference gap:** the LangChain instrumentor drops thinking blocks from the flattened `llm.output_messages` attributes, but keeps them in the raw `output.value`. The adapter searches that raw output for `thinking`/`reasoning` content blocks rather than relying on one exact layout.
+- **Note:** without interleaved thinking, Claude thinks at the start of a turn, not after each tool result, so only the first call of an agent's loop carries thinking.
+
+## D33. An activity feed, not only a details panel
+- **Problem:** after the first user test, tool arguments, results, model text and thinking were all captured but only reachable by clicking a node. Users read a run as a story, not node by node.
+- **Chosen:** a feed on the right with every model call (thinking, reply as Markdown, requested tool calls) and tool call (arguments, result or error), labelled with its agent and node, in time order, on the same clock as the graph. Hover or click links it to the graph. On a timestamp tie, a tool result comes before the model call that reads it.
+- **Markdown:** a small renderer that builds React elements (no raw HTML), so model output can't inject markup. No dependency.
+
+## D34. Light theme by default, tokens for everything
+- **Chosen:** light by default, after user feedback; dark one click away, remembered per browser. Every colour is a CSS variable redefined under `[data-theme='dark']`, so components never name a colour. Agent hues stay the same in both; text drawn in a hue is mixed darker on light backgrounds to stay readable. SVG marker colours can't use CSS variables, so the graph passes them per theme.
+
+## D35. Timeline hidden by default
+- **Chosen:** the playback bar and timeline are a dock that opens on demand (`t` or the floating control); a small floating control keeps play/pause and the time visible. The replay clock lives in the app, not in the dock, so replay keeps running while the dock is hidden. The graph re-frames whenever its canvas changes size (panels, dock, window).
+
+## D36. Calls readable inside the graph: expandable cards
+- **Problem:** with details in a side feed and a panel, reading a step still meant looking away from the graph.
+- **Chosen:** every card with model or tool calls can expand in place to show them (thinking, replies, tool arguments and results), split by run when the node ran several times, on the same clock as the graph. The feed and the cards share one set of call views (`CallViews.tsx`), so a call reads the same everywhere.
+- **Fixed size:** an expanded card is 400 x 380 and scrolls inside, so the layout changes once when a card opens, not every time text arrives. Which cards are open is part of the layout key. Loop arcs use the cards' real tops (`useInternalNode`) so they pass over tall cards instead of through them.
