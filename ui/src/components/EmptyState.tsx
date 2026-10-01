@@ -48,7 +48,7 @@ export function EmptyState() {
               if (trace_ids[0]) selectRun(trace_ids[0], true)
               setLoading(false)
             }}
-            className="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg bg-white px-4 py-2.5 text-[13.5px] font-medium text-canvas transition-transform duration-150 hover:scale-[1.02] disabled:opacity-60"
+            className="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg bg-inverse px-4 py-2.5 text-[13.5px] font-medium text-canvas transition-transform duration-150 hover:scale-[1.02] disabled:opacity-60"
           >
             <Play size={13} /> Load the demo run
           </button>

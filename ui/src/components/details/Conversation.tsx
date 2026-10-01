@@ -6,13 +6,14 @@
 import { useState } from 'react'
 import type { Message, ModelCall } from '../../types'
 import { formatTokens } from '../../theme'
+import { Markdown } from '../Markdown'
 import { JsonBlock } from './JsonView'
 
 const ROLE_STYLE: Record<string, string> = {
   system: 'text-muted border-border',
-  user: 'text-[#7c9cff] border-[#7c9cff]/40',
-  assistant: 'text-[#c084fc] border-[#c084fc]/40',
-  tool: 'text-[#f5b94a] border-[#f5b94a]/40',
+  user: 'text-role-user border-role-user/40',
+  assistant: 'text-role-assistant border-role-assistant/40',
+  tool: 'text-role-tool border-role-tool/40',
 }
 
 export function Conversation({ call }: { call: ModelCall }) {
@@ -50,7 +51,7 @@ function MessageView({ message, output = false, clamp = false }: { message: Mess
   const [expanded, setExpanded] = useState(!clamp)
   const style = ROLE_STYLE[message.role] ?? 'text-muted border-border'
   return (
-    <div className={`rounded-lg border-l-2 bg-white/[0.03] py-2 pl-3 pr-2 ${style.split(' ')[1]}`}>
+    <div className={`rounded-lg border-l-2 bg-overlay-soft py-2 pl-3 pr-2 ${style.split(' ')[1]}`}>
       <div className={`mb-1 flex items-center gap-2 text-[10.5px] uppercase tracking-wider ${style.split(' ')[0]}`}>
         {message.role}
         {output && <span className="text-muted normal-case tracking-normal">output</span>}
@@ -59,13 +60,21 @@ function MessageView({ message, output = false, clamp = false }: { message: Mess
         {message.parts.map((part, i) => {
           if (part.type === 'text') {
             return (
-              <p
+              <div
                 key={i}
                 onClick={() => clamp && setExpanded(!expanded)}
-                className={`whitespace-pre-wrap break-words text-[13px] leading-relaxed text-text/90 ${expanded ? '' : 'line-clamp-3 cursor-pointer'}`}
+                className={expanded ? '' : 'line-clamp-3 cursor-pointer'}
               >
-                {part.text}
-              </p>
+                <Markdown text={part.text ?? ''} className="text-[13px] text-text/90" />
+              </div>
+            )
+          }
+          if (part.type === 'reasoning') {
+            return (
+              <div key={i} className="rounded-md border-l-2 border-role-thinking/40 py-1 pl-2">
+                <div className="mb-0.5 text-[10.5px] uppercase tracking-wider text-role-thinking">thinking</div>
+                <p className="whitespace-pre-wrap break-words text-[12.5px] italic leading-relaxed text-muted">{part.text}</p>
+              </div>
             )
           }
           if (part.type === 'tool_call') {

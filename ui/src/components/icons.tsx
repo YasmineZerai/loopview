@@ -62,3 +62,27 @@ export const Logo = ({ size = 20 }: P) => (
     <path d="M9 11 15.5 7.2M9 13l6.5 3.8M18 9v6" stroke="#3f3f46" strokeWidth="1.6" />
   </svg>
 )
+export const Sun = ({ size, className }: P) => (
+  <svg {...base(size)} className={className}><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>
+)
+export const Moon = ({ size, className }: P) => (
+  <svg {...base(size)} className={className}><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" /></svg>
+)
+export const Activity = ({ size, className }: P) => (
+  <svg {...base(size)} className={className}><path d="M4 6h16M4 12h10M4 18h13" /></svg>
+)
+export const ChevronUp = ({ size, className }: P) => (
+  <svg {...base(size)} className={className}><path d="m6 15 6-6 6 6" /></svg>
+)
+export const ChevronDown = ({ size, className }: P) => (
+  <svg {...base(size)} className={className}><path d="m6 9 6 6 6-6" /></svg>
+)
+export const Thought = ({ size, className }: P) => (
+  <svg {...base(size)} className={className}><path d="M8 18h8a5 5 0 0 0 .9-9.9A6 6 0 0 0 5.3 9.6 4.3 4.3 0 0 0 8 18z" /><circle cx="6" cy="21.5" r="1" /></svg>
+)
+export const ArrowRight = ({ size, className }: P) => (
+  <svg {...base(size)} className={className}><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+)
+export const Expand = ({ size, className }: P) => (
+  <svg {...base(size)} className={className}><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M7 9h10M7 13h10M7 17h6" /></svg>
+)

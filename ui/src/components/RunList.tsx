@@ -25,7 +25,7 @@ export function RunList() {
       <div className="flex h-11 shrink-0 items-center justify-between border-b border-border px-4">
         <span className="text-[11px] uppercase tracking-wider text-muted">Runs</span>
         <button
-          className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[11.5px] text-muted hover:bg-white/8 hover:text-text"
+          className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[11.5px] text-muted hover:bg-overlay hover:text-text"
           onClick={() => fileInput.current?.click()}
           title="Import a run exported as JSONL"
         >
@@ -71,7 +71,7 @@ function RunItem({ run, selected, onClick }: { run: RunInfo; selected: boolean; 
   return (
     <button
       onClick={onClick}
-      className={`mb-1 w-full rounded-lg border px-3 py-2 text-left transition-colors duration-150 ${selected ? 'border-border bg-white/[0.06]' : 'border-transparent hover:bg-white/[0.03]'}`}
+      className={`mb-1 w-full rounded-lg border px-3 py-2 text-left transition-colors duration-150 ${selected ? 'border-border bg-surface shadow-sm' : 'border-transparent hover:bg-overlay'}`}
     >
       <div className="flex items-center gap-2">
         <StatusMark status={run.status} size={12} />

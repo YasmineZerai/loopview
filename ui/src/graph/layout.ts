@@ -11,6 +11,10 @@ import type { Graph, GraphNode } from './buildGraph'
 
 export const NODE_WIDTH = 216
 export const NODE_HEIGHT = 64
+// An expanded card shows its calls inline. It has a fixed size and scrolls
+// inside, so the layout doesn't jump while text streams in.
+export const EXPANDED_WIDTH = 400
+export const EXPANDED_HEIGHT = 380
 export const TOOLS_ROW_HEIGHT = 30
 export const GROUP_HEADER = 40
 const GROUP_PADDING = 22
@@ -64,7 +68,12 @@ function groupMinWidth(node: GraphNode): number {
   return 110 + (node.name.length + node.typeLabel.length) * 8
 }
 
-export async function computeLayout(graph: Graph): Promise<Layout> {
+/** Whether a card can expand: it has model or tool calls to show. */
+export function hasCalls(node: GraphNode): boolean {
+  return node.modelCalls > 0 || node.tools.length > 0
+}
+
+export async function computeLayout(graph: Graph, expanded: Set<string> = new Set()): Promise<Layout> {
   const children = new Map<string | null, GraphNode[]>()
   for (const node of graph.nodes) {
     const list = children.get(node.groupKey) ?? []
@@ -85,6 +94,7 @@ export async function computeLayout(graph: Graph): Promise<Layout> {
         children: inner.map(toElk),
       }
     }
+    if (expanded.has(node.key)) return { id: node.key, width: EXPANDED_WIDTH, height: EXPANDED_HEIGHT }
     return { id: node.key, width: NODE_WIDTH, height: nodeHeight(node) }
   }
 

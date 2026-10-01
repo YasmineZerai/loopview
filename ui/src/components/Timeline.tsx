@@ -146,8 +146,8 @@ export function Timeline() {
               )}
             </div>
           ))}
-          <div className="pointer-events-none absolute inset-y-0 w-px bg-white/70" style={{ left: x(now) }}>
-            <div className="absolute -left-[3px] -top-[3px] h-[7px] w-[7px] rounded-full bg-white" />
+          <div className="pointer-events-none absolute inset-y-0 w-px bg-text/70" style={{ left: x(now) }}>
+            <div className="absolute -left-[3px] -top-[3px] h-[7px] w-[7px] rounded-full bg-text" />
           </div>
         </div>
       </div>

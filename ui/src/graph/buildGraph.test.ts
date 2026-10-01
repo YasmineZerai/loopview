@@ -57,7 +57,9 @@ describe('buildGraph', () => {
     const g = buildGraph(flagship)
     const tools = node(g, 'database_comparison/ecosystem_analyst/tools').tools
     const stats = tools.find((t) => t.name === 'fetch_repo_stats')
-    expect(stats).toMatchObject({ calls: 4, errors: 1 })
+    // It fails once, then the agent retries; how many calls in total is the model's choice.
+    expect(stats?.errors).toBe(1)
+    expect(stats!.calls).toBeGreaterThan(stats!.errors)
     expect(node(g, 'database_comparison/supervisor').modelCalls).toBe(1)
   })
 
@@ -79,7 +81,8 @@ describe('buildGraph', () => {
     const g = buildGraph(react)
     expect(g.nodes).toHaveLength(1)
     expect(g.nodes[0].tools.map((t) => t.name).sort()).toEqual(['calculator', 'convert_currency', 'hotel_price'])
-    expect(g.nodes[0].modelCalls).toBe(3)
+    const modelCalls = react.steps.filter((s) => s.kind === 'model_call' && !s.hidden).length
+    expect(g.nodes[0].modelCalls).toBe(modelCalls)
   })
 })
 

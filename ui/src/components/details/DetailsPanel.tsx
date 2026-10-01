@@ -35,7 +35,7 @@ export function DetailsPanel() {
                 {executions.length} execution{executions.length > 1 ? 's' : ''} · {first.convention}
               </div>
             </div>
-            <button className="rounded-md p-1.5 text-muted hover:bg-white/10 hover:text-text" onClick={() => setSelectedKey(null)}>
+            <button className="rounded-md p-1.5 text-muted hover:bg-overlay-strong hover:text-text" onClick={() => setSelectedKey(null)}>
               <Cross size={16} />
             </button>
           </header>

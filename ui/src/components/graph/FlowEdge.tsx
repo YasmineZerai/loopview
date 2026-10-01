@@ -1,7 +1,7 @@
 // An edge between graph nodes, routed by ELK. When control travels along it
 // (its count goes up, live or during replay), a particle runs from source to target.
 
-import { BaseEdge, type Edge, type EdgeProps } from '@xyflow/react'
+import { BaseEdge, useInternalNode, type Edge, type EdgeProps } from '@xyflow/react'
 import { memo, useEffect, useRef, useState } from 'react'
 import type { GraphEdge } from '../../graph/buildGraph'
 import { roundedPath } from '../../graph/layout'
@@ -17,14 +17,20 @@ export type FlowFlowEdge = Edge<FlowEdgeData, 'flow'>
 
 const PARTICLE_MS = 450
 
-function FlowEdgeView({ id, data, sourceX, sourceY, targetX, targetY, markerEnd }: EdgeProps<FlowFlowEdge>) {
+function FlowEdgeView({ id, data, source, target, sourceX, sourceY, targetX, targetY, markerEnd }: EdgeProps<FlowFlowEdge>) {
   const edge = data!.edge
   const loop = edge.kind === 'loop'
   const points = data!.route ?? [
     { x: sourceX, y: sourceY },
     { x: targetX, y: targetY },
   ]
-  const arc = loop ? loopArc(sourceX, sourceY, targetX, targetY) : null
+  // A loop arcs over both cards, so it needs their real tops: an expanded card
+  // is much taller than its handle position suggests.
+  const sourceNode = useInternalNode(source)
+  const targetNode = useInternalNode(target)
+  const tops = [sourceNode, targetNode].map((n) => n?.internals.positionAbsolute.y).filter((y) => y !== undefined)
+  const cardsTop = tops.length ? Math.min(...tops) : Math.min(sourceY, targetY) - 30
+  const arc = loop ? loopArc(sourceX, sourceY, targetX, targetY, cardsTop) : null
   const path = arc ? arc.path : roundedPath(points)
   const particles = useParticles(edge.count)
   const label = arc ? arc.top : pointAtHalfLength(points)
@@ -58,9 +64,8 @@ function FlowEdgeView({ id, data, sourceX, sourceY, targetX, targetY, markerEnd 
 
 /** A loop goes back to an earlier node: an arc from the source's right side,
  * up over the nodes, down into the target's left side. */
-function loopArc(sx: number, sy: number, tx: number, ty: number) {
-  const lift = 34 + Math.abs(sx - tx) * 0.1
-  const top = Math.min(sy, ty) - lift
+function loopArc(sx: number, sy: number, tx: number, ty: number, cardsTop: number) {
+  const top = cardsTop - 12 - Math.abs(sx - tx) * 0.06
   const path = `M ${sx} ${sy} C ${sx + 48} ${sy} ${sx + 48} ${top} ${(sx + tx) / 2} ${top} S ${tx - 48} ${ty} ${tx} ${ty}`
   return { path, top: { x: (sx + tx) / 2, y: top } }
 }

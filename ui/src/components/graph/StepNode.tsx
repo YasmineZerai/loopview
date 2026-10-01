@@ -1,11 +1,15 @@
 // A graph node card: name, type, run counter, state, and its tool satellites.
+// Expanded, it also shows its calls inline: thinking, replies, tool arguments
+// and results, on the same clock as the graph.
 
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react'
 import { memo, useEffect, useRef, useState } from 'react'
-import type { GraphNode, ToolSatellite } from '../../graph/buildGraph'
-import { formatTokens } from '../../theme'
+import { LIVE, type GraphNode, type ToolSatellite } from '../../graph/buildGraph'
+import { formatDuration, formatTokens } from '../../theme'
+import type { Step } from '../../types'
+import { CallView, isRunning } from '../CallViews'
 import { StatusMark } from '../StatusMark'
-import { Plus, Sparkle, Wrench } from '../icons'
+import { Chevron, Plus, Sparkle, Wrench } from '../icons'
 
 export type StepNodeData = {
   node: GraphNode
@@ -13,21 +17,26 @@ export type StepNodeData = {
   highlighted: boolean
   selected: boolean
   onToggle?: () => void
+  expandable: boolean
+  expanded: boolean
+  onExpand: () => void
+  calls: Step[] // this node's model and tool calls, in reading order
+  time: number // the replay clock (only passed to expanded cards)
 }
 
 export type StepFlowNode = Node<StepNodeData, 'step'>
 
 function StepNodeView({ data }: NodeProps<StepFlowNode>) {
-  const { node, hue, highlighted, selected } = data
+  const { node, hue, highlighted, selected, expanded } = data
   const running = node.status === 'running'
   const error = node.status === 'error'
   return (
     <div
       className={[
-        'step-card group relative h-full rounded-xl border bg-surface/95 px-3 py-2.5 backdrop-blur',
+        'step-card group relative flex h-full flex-col rounded-xl border bg-surface/95 px-3 py-2.5 backdrop-blur',
         running ? 'is-running' : '',
         error ? 'border-state-error/70' : 'border-border',
-        selected ? 'ring-2 ring-white/70' : highlighted ? 'ring-2 ring-white/30' : '',
+        selected ? 'ring-2 ring-ring/70' : highlighted ? 'ring-2 ring-ring/30' : '',
         node.status === 'idle' ? 'opacity-60' : '',
       ].join(' ')}
       style={{ '--hue': hue } as React.CSSProperties}
@@ -40,6 +49,18 @@ function StepNodeView({ data }: NodeProps<StepFlowNode>) {
         <StatusMark status={node.status} />
         <span className="truncate font-mono text-[13px] font-medium text-text">{node.name}</span>
         {node.runCount > 1 && <RunCounter count={node.runCount} />}
+        {data.expandable && (
+          <button
+            className={`nodrag flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted hover:bg-overlay-strong hover:text-text ${node.runCount > 1 ? '' : 'ml-auto'}`}
+            title={expanded ? 'Hide calls' : 'Show calls: thinking, replies, tool inputs and outputs (e for all)'}
+            onClick={(e) => {
+              e.stopPropagation()
+              data.onExpand()
+            }}
+          >
+            <Chevron size={13} className={`transition-transform duration-200 ${expanded ? 'rotate-90' : ''}`} />
+          </button>
+        )}
       </div>
       <div className="mt-1 flex items-center gap-2 pl-[22px] text-[11px] text-muted">
         <span className="uppercase tracking-wider">{node.inferred ? 'running' : node.typeLabel}</span>
@@ -62,13 +83,73 @@ function StepNodeView({ data }: NodeProps<StepFlowNode>) {
           </button>
         )}
       </div>
-      {node.tools.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1 pl-[18px]">
-          {node.tools.map((t) => (
-            <ToolPill key={t.name} tool={t} hue={hue} />
-          ))}
-        </div>
+      {expanded ? (
+        <CallsBody calls={data.calls} time={data.time} runCount={node.runCount} />
+      ) : (
+        node.tools.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1 pl-[18px]">
+            {node.tools.map((t) => (
+              <ToolPill key={t.name} tool={t} hue={hue} />
+            ))}
+          </div>
+        )
       )}
+    </div>
+  )
+}
+
+/**
+ * The calls of an expanded card. Scrolls inside the card (nowheel: the wheel
+ * scrolls the list instead of zooming the graph) and follows the newest call
+ * unless the reader scrolled up. Repeated runs of the node get a divider.
+ */
+function CallsBody({ calls, time, runCount }: { calls: Step[]; time: number; runCount: number }) {
+  const now = time === 0 ? LIVE : time
+  const visible = now === LIVE ? calls : calls.filter((c) => c.start_ns <= now)
+  const scroller = useRef<HTMLDivElement>(null)
+  const stick = useRef(true)
+  useEffect(() => {
+    const el = scroller.current
+    if (el && stick.current) el.scrollTop = el.scrollHeight
+  }, [visible.length])
+
+  let lastScope: string | null = null
+  let run = 0
+  return (
+    <div
+      ref={scroller}
+      className="nowheel nodrag nopan mt-2 min-h-0 flex-1 cursor-auto space-y-2 overflow-y-auto border-t border-border pr-1 pt-2"
+      onScroll={(e) => {
+        const el = e.currentTarget
+        stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 30
+      }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {visible.length === 0 && <p className="text-[12px] text-muted">No calls yet.</p>}
+      {visible.map((call) => {
+        const newRun = call.scope_id !== lastScope
+        if (newRun) run += 1
+        lastScope = call.scope_id
+        const status = isRunning(call, now) ? 'running' : call.status
+        return (
+          <div key={call.id}>
+            {newRun && runCount > 1 && (
+              <div className="mb-1.5 flex items-center gap-2 text-[10.5px] uppercase tracking-wider text-muted">
+                run {run}
+                <span className="h-px flex-1 bg-border" />
+              </div>
+            )}
+            <div className="rounded-lg bg-overlay-soft p-2">
+              <div className="mb-1 flex items-center gap-1.5 font-mono text-[10.5px] text-muted">
+                {call.kind === 'model_call' ? 'model' : 'tool'}
+                <span className="ml-auto">{call.end_ns !== null && !isRunning(call, now) ? formatDuration(call.end_ns - call.start_ns) : ''}</span>
+                <StatusMark status={status} size={10} />
+              </div>
+              <CallView step={call} time={now} />
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -76,7 +157,7 @@ function StepNodeView({ data }: NodeProps<StepFlowNode>) {
 /** The ×N counter; bumps when the node runs again. */
 function RunCounter({ count }: { count: number }) {
   return (
-    <span key={count} className="counter-bump ml-auto rounded-md bg-white/8 px-1.5 font-mono text-[11px] text-text">
+    <span key={count} className="counter-bump ml-auto rounded-md bg-overlay-strong px-1.5 font-mono text-[11px] text-text">
       ×{count}
     </span>
   )

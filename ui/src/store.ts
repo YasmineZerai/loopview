@@ -31,9 +31,16 @@ interface State {
   selectedKey: string | null // graph node shown in the details panel
   hoverKey: string | null // graph node hovered in the graph or the timeline
   collapsed: Set<string> // collapsed groups
+  // Cards showing their calls inline. With expandAll on, the set lists the
+  // cards the user closed instead of the ones they opened.
+  expanded: Set<string>
+  expandAll: boolean
   playback: Playback
   connected: boolean
   sidebarOpen: boolean
+  theme: Theme
+  dockOpen: boolean // playback + timeline at the bottom
+  activityOpen: boolean // the activity feed on the right
 
   setRuns: (runs: RunInfo[]) => void
   applyUpdate: (event: RunUpdateEvent) => void
@@ -41,9 +48,39 @@ interface State {
   setSelectedKey: (key: string | null) => void
   setHoverKey: (key: string | null) => void
   toggleCollapsed: (key: string) => void
+  toggleExpanded: (key: string) => void
+  toggleExpandAll: () => void
   setPlayback: (p: Partial<Playback>) => void
   setConnected: (c: boolean) => void
   toggleSidebar: () => void
+  toggleTheme: () => void
+  toggleDock: () => void
+  toggleActivity: () => void
+}
+
+export type Theme = 'light' | 'dark'
+
+// View preferences survive a reload. Storage can be unavailable (private
+// windows, blocked site data), so every access is guarded.
+function loadPref<T extends string | boolean>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(`loopview.${key}`)
+    return raw === null ? fallback : (JSON.parse(raw) as T)
+  } catch {
+    return fallback
+  }
+}
+
+function savePref(key: string, value: string | boolean) {
+  try {
+    localStorage.setItem(`loopview.${key}`, JSON.stringify(value))
+  } catch {
+    // not persisted; the preference still applies for this visit
+  }
+}
+
+export function applyTheme(theme: Theme) {
+  document.documentElement.dataset.theme = theme
 }
 
 function toLoaded(run: RunInfo, steps: Map<string, Step>, transitions: Transition[], version: number): LoadedRun {
@@ -59,9 +96,14 @@ export const useStore = create<State>((set, get) => ({
   selectedKey: null,
   hoverKey: null,
   collapsed: new Set(),
+  expanded: new Set(),
+  expandAll: false,
   playback: { time: LIVE, playing: false, speed: 1 },
   connected: false,
   sidebarOpen: true,
+  theme: loadPref<Theme>('theme', 'light'),
+  dockOpen: loadPref('dockOpen', false),
+  activityOpen: loadPref('activityOpen', true),
 
   setRuns: (list) => {
     const runs = new Map(list.map((r) => [r.id, r]))
@@ -118,9 +160,34 @@ export const useStore = create<State>((set, get) => ({
     else collapsed.add(key)
     set({ collapsed })
   },
+  toggleExpanded: (key) => {
+    const expanded = new Set(get().expanded)
+    if (expanded.has(key)) expanded.delete(key)
+    else expanded.add(key)
+    set({ expanded })
+  },
+  toggleExpandAll: () => set({ expandAll: !get().expandAll, expanded: new Set() }),
   setPlayback: (p) => set({ playback: { ...get().playback, ...p } }),
   setConnected: (connected) => set({ connected }),
   toggleSidebar: () => set({ sidebarOpen: !get().sidebarOpen }),
+  toggleTheme: () => {
+    const theme: Theme = get().theme === 'light' ? 'dark' : 'light'
+    applyTheme(theme)
+    savePref('theme', theme)
+    set({ theme })
+  },
+  toggleDock: () => {
+    savePref('dockOpen', !get().dockOpen)
+    set({ dockOpen: !get().dockOpen })
+  },
+  toggleActivity: () => {
+    savePref('activityOpen', !get().activityOpen)
+    set({ activityOpen: !get().activityOpen })
+  },
 }))
+
+export function isExpanded(state: { expanded: Set<string>; expandAll: boolean }, key: string) {
+  return state.expandAll !== state.expanded.has(key)
+}
 
 export const useSelectedRun = () => useStore((s) => (s.selectedRunId ? s.loaded.get(s.selectedRunId) : undefined))

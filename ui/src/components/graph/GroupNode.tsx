@@ -24,7 +24,7 @@ function GroupNodeView({ data }: NodeProps<GroupFlowNode>) {
       className={[
         'agent-group h-full w-full rounded-2xl border',
         running ? 'is-running' : '',
-        selected ? 'ring-2 ring-white/60' : highlighted ? 'ring-2 ring-white/25' : '',
+        selected ? 'ring-2 ring-ring/60' : highlighted ? 'ring-2 ring-ring/25' : '',
       ].join(' ')}
       style={{ '--hue': hue } as React.CSSProperties}
     >
@@ -32,12 +32,12 @@ function GroupNodeView({ data }: NodeProps<GroupFlowNode>) {
       <Handle type="source" position={Position.Right} className="!invisible" />
       <div className="flex h-10 min-w-0 items-center gap-2 px-3.5">
         <StatusMark status={node.status} size={13} />
-        <span className="shrink-0 font-mono text-[13px] font-semibold" style={{ color: hue }}>
+        <span className="hue-ink shrink-0 font-mono text-[13px] font-semibold">
           {node.name}
         </span>
         <span className="text-[10.5px] uppercase tracking-wider text-muted">{node.typeLabel}</span>
         {node.runCount > 1 && (
-          <span key={node.runCount} className="counter-bump rounded-md bg-white/8 px-1.5 font-mono text-[11px]">
+          <span key={node.runCount} className="counter-bump rounded-md bg-overlay-strong px-1.5 font-mono text-[11px]">
             ×{node.runCount}
           </span>
         )}
@@ -47,7 +47,7 @@ function GroupNodeView({ data }: NodeProps<GroupFlowNode>) {
           </span>
         )}
         <button
-          className="nodrag ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted hover:bg-white/10 hover:text-text"
+          className="nodrag ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted hover:bg-overlay-strong hover:text-text"
           title="Collapse"
           onClick={(e) => {
             e.stopPropagation()

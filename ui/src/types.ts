@@ -13,7 +13,7 @@ export type TransitionKind =
   | 'return'
 
 export interface MessagePart {
-  type: 'text' | 'tool_call' | 'tool_result' | 'other'
+  type: 'text' | 'reasoning' | 'tool_call' | 'tool_result' | 'other'
   text?: string | null
   id?: string | null
   name?: string | null
