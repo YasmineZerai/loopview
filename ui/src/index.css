@@ -1,17 +1,30 @@
 @import 'tailwindcss';
 
-/* Design tokens. Dark is the default; light mode arrives with the polish milestone. */
+/* Design tokens. Dark is the hero theme. */
 @theme {
-  --color-canvas: #0a0a0b;
-  --color-canvas-dot: #1f1f23;
-  --color-surface: #121215;
-  --color-border: #26262b;
+  --color-canvas: #09090b;
+  --color-canvas-dot: #27272a;
+  --color-surface: #111114;
+  --color-border: #232329;
   --color-text: #ededef;
-  --color-muted: #8b8b93;
-  --color-accent: #7c9cff;
+  --color-muted: #8b8b95;
+  --color-accent: #9db1ff;
 
-  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code', monospace;
+  /* State colours: the same meaning in the graph, the timeline and the panels. */
+  --color-state-running: #f4f4f5;
+  --color-state-ok: #4ade80;
+  --color-state-error: #f87171;
+  --color-state-idle: #52525b;
+
+  --color-json-key: #9db1ff;
+  --color-json-string: #a5d6a7;
+  --color-json-number: #f5b94a;
+  --color-json-bool: #c084fc;
+
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, 'Cascadia Code', monospace;
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 html,
@@ -25,11 +38,215 @@ body {
   background: var(--color-canvas);
   color: var(--color-text);
   font-family: var(--font-sans);
+  font-feature-settings: 'cv11', 'ss01';
   -webkit-font-smoothing: antialiased;
+  overflow: hidden;
 }
 
-/* The design-tool style dot grid behind the graph. */
-.dot-grid {
-  background-image: radial-gradient(var(--color-canvas-dot) 1px, transparent 1px);
-  background-size: 20px 20px;
+::selection {
+  background: rgb(157 177 255 / 0.3);
+}
+
+/* ---- React Flow ------------------------------------------------------------ */
+
+.react-flow {
+  --xy-background-color: var(--color-canvas);
+}
+/* Nodes glide to their new place when the layout changes. */
+.react-flow__node {
+  transition: transform 300ms var(--ease-out);
+}
+.react-flow__node-group {
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+/* ---- graph node cards --------------------------------------------------------- */
+
+.step-card {
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 8px 24px rgb(0 0 0 / 0.35);
+  transition:
+    border-color 200ms var(--ease-out),
+    box-shadow 250ms var(--ease-out),
+    opacity 200ms var(--ease-out);
+  animation: node-in 250ms var(--ease-out);
+}
+.step-card.is-running {
+  border-color: color-mix(in srgb, var(--hue) 70%, white);
+  animation:
+    node-in 250ms var(--ease-out),
+    glow 1.8s ease-in-out infinite;
+}
+
+@keyframes glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--hue) 45%, transparent),
+      0 0 18px 2px color-mix(in srgb, var(--hue) 30%, transparent),
+      0 8px 24px rgb(0 0 0 / 0.35);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--hue) 70%, transparent),
+      0 0 30px 6px color-mix(in srgb, var(--hue) 42%, transparent),
+      0 8px 24px rgb(0 0 0 / 0.35);
+  }
+}
+
+@keyframes node-in {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.counter-bump {
+  animation: bump 260ms var(--ease-out);
+}
+@keyframes bump {
+  0% {
+    transform: scale(1.35);
+    background: color-mix(in srgb, var(--hue, white) 45%, transparent);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* ---- agent groups ---------------------------------------------------------------- */
+
+.agent-group {
+  background: color-mix(in srgb, var(--hue) 5%, transparent);
+  border-color: color-mix(in srgb, var(--hue) 28%, transparent);
+  transition:
+    border-color 250ms var(--ease-out),
+    background 250ms var(--ease-out);
+  animation: fade-in 300ms var(--ease-out);
+}
+.agent-group.is-running {
+  background: color-mix(in srgb, var(--hue) 8%, transparent);
+  border-color: color-mix(in srgb, var(--hue) 55%, transparent);
+}
+
+/* ---- tool satellites -------------------------------------------------------------- */
+
+.tool-pill {
+  background: var(--color-canvas);
+  transition:
+    color 200ms,
+    border-color 200ms;
+}
+.tool-pill.is-running {
+  color: var(--color-text);
+  border-color: var(--hue);
+}
+.tool-flash {
+  animation: tool-flash 700ms var(--ease-out);
+}
+@keyframes tool-flash {
+  0% {
+    transform: translateY(-3px) scale(1.12);
+    color: var(--color-text);
+    border-color: var(--hue);
+    box-shadow: 0 0 14px color-mix(in srgb, var(--hue) 60%, transparent);
+  }
+  100% {
+    transform: none;
+    box-shadow: none;
+  }
+}
+
+/* ---- edges and particles ---------------------------------------------------------- */
+
+.flow-edge {
+  stroke: #3f3f46 !important;
+  stroke-width: 1.5 !important;
+  transition: stroke 250ms;
+}
+.flow-edge.is-loop {
+  stroke-dasharray: 5 4;
+}
+.flow-edge.is-active {
+  stroke: color-mix(in srgb, var(--hue) 75%, white) !important;
+}
+.flow-particle {
+  filter: drop-shadow(0 0 5px currentColor);
+}
+
+/* ---- timeline ------------------------------------------------------------------------- */
+
+.timeline-bar.is-running {
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--hue) 35%, transparent) 50%,
+    transparent 100%
+  ) !important;
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+/* ---- scrubber ----------------------------------------------------------------------------- */
+
+.scrubber {
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-border);
+  cursor: pointer;
+}
+.scrubber::-webkit-slider-thumb {
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: white;
+}
+.scrubber::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: none;
+  border-radius: 50%;
+  background: white;
+}
+.scrubber:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.fade-in {
+  animation: fade-in 350ms var(--ease-out);
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+  }
 }
