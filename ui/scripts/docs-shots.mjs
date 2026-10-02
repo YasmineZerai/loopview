@@ -64,11 +64,14 @@ await shot('screenshot-dark')
 await state(() => window.__loopview.getState().toggleDock())
 await state(() => window.__loopview.getState().toggleTheme())
 
-// 5. The Cost tab, whole flagship run.
+// 5. The cost tree, whole flagship run, with the activity feed closed.
 await at(null)
-await state(() => window.__loopview.getState().togglePanel('cost'))
-await settle()
+await state(() => window.__loopview.getState().togglePanel('activity'))
+await state(() => window.__loopview.getState().setView('cost'))
+await page.mouse.move(5, 500)
+await settle(1800)
 await shot('screenshot-cost')
+await state(() => window.__loopview.getState().setView('graph'))
 await state(() => window.__loopview.getState().togglePanel('activity'))
 
 await browser.close()

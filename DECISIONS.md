@@ -170,15 +170,21 @@ One short entry per significant decision: what was chosen, what was rejected, an
 - **Thinking:** taken from the reported reasoning tokens when present; otherwise estimated from the thinking text like the rest.
 - **Without content**, the call's whole cost is unattributed: the total is known, the split isn't.
 
-## D40. Cost colours: a neutral ink ramp
+## D40. Cost colours: one family of hues per group
 - **Problem:** ten distinct segment colours that also stay clear of the eight agent hues and the state colours (green, red) proved impossible: validated palettes either collided with an agent hue or failed colour-blind separation.
-- **Chosen:** four shades of grey ink, one per group (instructions, conversation, cache, output), darkest first, plus a hatched pattern for unattributed, which is "unknown", not a category. Each theme has its own steps, checked as an ordered ramp against its own background. Segments inside a group are told apart by a 2px gap, labels when they fit, the hover tooltip and the breakdown table. Agent colours appear only as a dot next to an agent's name, so colour keeps meaning "which agent".
+- **First tried:** a grey ramp, one shade per group, to stay clear of the agent hues. The user found it dull and hard to read.
+- **Chosen:** a family of hues per group, a shade per segment: instructions indigo (tool prompt, tool definitions, system), conversation blue (history, tool results, new input), cache green (reads, writes), thinking amber, reply rose, and a hatched grey for unattributed, which is "unknown", not a category. Each theme has its own shades. The hues sit close to some agent hues, so the two never share a mark: branches to agents and steps carry the agent's colour, and segment colours appear only in the stacked bars and the leaves, always with a label.
 
 ## D41. Where the cost is computed
 - **Chosen:** the server computes each call's split once, when normalizing (`cost/split.py`, pure functions, tested with pytest). The UI only adds up the calls finished by the current moment (`costModel.ts`), so live view, replay, per agent and per step all come from the same numbers.
 - **Why:** the split needs the full message content, which the server already has; summing at a moment in time is the same model as `buildGraph(run, t)`. **Rejected:** computing everything in the browser (the content would be parsed twice and Python's tests couldn't cover it).
-- **Interaction:** clicking a card filters the tab to it (all its model calls, across loop iterations); a row in "most expensive steps" selects and centres its card; hovering a segment outlines the three cards where that segment costs most.
 
 ## D42. Prices in an editable JSON file
 - **Chosen:** `cost/pricing.json`, one entry per model family with input, cache write (5 minutes), cache read and output prices per million tokens, the tool prompt size, a source URL and the date checked. A model ID matches the longest family name it starts with, so dated IDs (`claude-haiku-4-5-20251001`) need no entry of their own. `--prices FILE` merges a user's file over it.
 - **Why:** prices change; a JSON file can be checked and edited by anyone without touching code, and the source and date make every number auditable. Unknown models get no price rather than a guess: they show tokens only.
+
+## D43. Cost drawn as a tree whose branches are as thick as the money
+- **Problem:** the first version was a side panel of bars and tables, the second an icicle of grey blocks under the graph. The user found both read like a report, not like the rest of loopview, which is graphic.
+- **Chosen:** a tree drawn left to right, taking the whole canvas (<kbd>c</kbd> switches between graph and cost). The trunk is the run; it branches into agents, then steps. Every bar is as tall as its cost and the branches leaving it stack up to exactly its height, so the money can be followed from the trunk to every leaf (a Sankey drawn as a tree). The trunk and each step are stacked by what their tokens were spent on; clicking a step opens it into one leaf per segment. The most expensive step starts open. Hovering keeps the hovered branch lit and fades the rest; double-clicking a step shows its card in the graph.
+- **Layout:** pure functions in `costTree.ts` (tested): leaves stacked top to bottom with room for their label, each parent centred on its children, branches straight for a while before they curve so labels sit on a calm band. Plain SVG, no chart library.
+- **Rejected:** a sunburst (angles are hard to compare, labels don't fit), cost badges on the graph cards (good for one step, poor for comparing many), and the icicle (correct, but blocks don't read as a tree).

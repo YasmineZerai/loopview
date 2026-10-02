@@ -35,7 +35,7 @@ loopview draws the run as a graph that builds itself while the agent runs:
 - **Tool calls fire next to the step that made them**, and a failed call turns red.
 - **Every step can be opened** to read its thinking, its replies, and each tool call's arguments and result, right in the graph.
 - **Any run can be replayed** at 0.5x to 4x, with the graph and the activity feed on the same clock.
-- **The Cost tab shows where the money goes**: system prompt, tool definitions, history, cache, thinking, reply, per agent and per step.
+- **A cost tree shows where the money goes**: the run branches into agents and steps, each branch as thick as its cost, down to what the tokens were spent on.
 
 It works with **any framework that emits OpenTelemetry traces** (LangGraph, Pydantic AI, the OpenAI and Anthropic SDKs, or your own code), and it runs **on your machine**: one command, no account, no database, nothing sent anywhere.
 
@@ -64,9 +64,9 @@ Or skip the screenshots: [**open the live demo**](https://yasminezerai.github.io
 
 ## Where the money goes
 
-<img src="docs/screenshot-cost.png" alt="The Cost tab: the run's total, a bar splitting each dollar by where the tokens came from, cost per agent and the most expensive steps">
+<img src="docs/screenshot-cost.png" alt="The cost tree: the run's trunk branches into agents and steps, each branch as thick as its cost, and the most expensive step opens into what its tokens were spent on">
 
-The Cost tab (<kbd>c</kbd>) splits every dollar of a run into what was sent and received: system prompt, tool definitions, conversation history, tool results, cache reads and writes, thinking and the reply, for the whole run, per agent or for one step. Totals are the token counts your provider reported, priced from an editable file; the split between them is estimated from the recorded content, and whatever can't be explained is shown as "unattributed" rather than guessed.
+Press <kbd>c</kbd> and the run becomes a tree: the trunk branches into agents and their steps, each branch as thick as the money flowing through it, and any step opens into what its tokens went to (system prompt, tool definitions, history, tool results, cache reads and writes, thinking, reply), each in its own colour. Totals are the token counts your provider reported, priced from an editable file; the split between them is estimated from the recorded content, and whatever can't be explained is shown as "unattributed" rather than guessed.
 
 ## Quick start
 
@@ -235,10 +235,10 @@ Standard OpenTelemetry exporters send a span only when it **ends**, but a live v
 | <kbd>←</kbd> <kbd>→</kbd> | step through events |
 | <kbd>e</kbd> | open or close every step in the graph |
 | <kbd>a</kbd> | show or hide the activity feed |
-| <kbd>c</kbd> | show or hide the Cost tab |
+| <kbd>c</kbd> | switch between the graph and the cost tree |
 | <kbd>t</kbd> | show or hide the timeline |
 | <kbd>f</kbd> | fit the graph to the screen |
-| <kbd>esc</kbd> | close the details panel, and show the whole run's cost again |
+| <kbd>esc</kbd> | close the details panel |
 
 Runs can be exported as JSONL and imported by someone else, so you can share a trace. `loopview --help` lists the server options (`--port`, `--persist FILE`, `--max-runs`, `--prices FILE`).
 
