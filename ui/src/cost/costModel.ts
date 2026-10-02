@@ -1,18 +1,17 @@
-// The Cost tab's numbers, for a moment in time.
+// The Cost view's numbers, for a moment in time.
 //
 // The server attaches a cost split to every finished model call (see
 // server/src/loopview/cost/split.py): tokens and dollars per segment, adding up
 // to the reported usage. This file only sums those splits, the same way the
 // graph is built: for a moment `t` (live: everything; replay: what had finished
-// by then). So the tab grows live and rewinds with the scrubber, and live and
+// by then). So the view grows live and rewinds with the scrubber, and live and
 // replay can't disagree.
 
 import { buildGraph, LIVE } from '../graph/buildGraph'
 import type { CostSegmentName, NormalizedRun, Step } from '../types'
 
-// Segments are drawn in prompt order, grouped. Colour encodes the group (see
-// theme tokens --color-cost-*); segments inside a group are told apart by
-// position, labels and the breakdown table, not by more colours.
+// Segments are drawn in prompt order, grouped. Each has its own colour, in one
+// family of hues per group (theme tokens --color-seg-*).
 export type CostGroup = 'instructions' | 'conversation' | 'cache' | 'output' | 'unattributed'
 
 export const SEGMENTS: { id: CostSegmentName; label: string; group: CostGroup }[] = [
@@ -66,7 +65,6 @@ export interface CostSummary {
   split: Split
   calls: CallRow[] // every finished model call counted, oldest first
   byAgent: AgentRow[] // most expensive first
-  top: CallRow[] // the five most expensive calls
   unpricedCalls: number // counted in tokens, not in dollars
   unsplitCalls: number // usage reported, content not recorded
   noUsageCalls: number
@@ -92,7 +90,7 @@ export function summarizeCost(run: NormalizedRun, time: number = LIVE, nodeKey: 
   const nameOf = new Map(graph.nodes.map((n) => [n.key, n.name]))
 
   const summary: CostSummary = {
-    total: empty(), split: {}, calls: [], byAgent: [], top: [],
+    total: empty(), split: {}, calls: [], byAgent: [],
     unpricedCalls: 0, unsplitCalls: 0, noUsageCalls: 0, runningCalls: 0,
   }
   const agents = new Map<string | null, AgentRow>()
@@ -136,25 +134,11 @@ export function summarizeCost(run: NormalizedRun, time: number = LIVE, nodeKey: 
   }
 
   summary.byAgent = [...agents.values()].sort((a, b) => b.total.dollars - a.total.dollars || b.total.tokens - a.total.tokens)
-  summary.top = [...summary.calls].sort((a, b) => b.total.dollars - a.total.dollars || b.total.tokens - a.total.tokens).slice(0, 5)
   return summary
-}
-
-/** The graph cards where one segment is largest: the top `n` by that segment. */
-export function cardsWhereLargest(summary: CostSummary, segment: CostSegmentName, unit: 'dollars' | 'tokens', n = 3): string[] {
-  const byCard = new Map<string, number>()
-  for (const call of summary.calls) {
-    const amount = call.split[segment]
-    if (!call.nodeKey || !amount) continue
-    byCard.set(call.nodeKey, (byCard.get(call.nodeKey) ?? 0) + amount[unit])
-  }
-  return [...byCard.entries()].filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).slice(0, n).map(([k]) => k)
 }
 
 // --- formatting ----------------------------------------------------------------------
 
-/** "$0.43" for a cent and up; below a cent, enough digits to stay meaningful
- * ("$0.0042"), since agent runs on small models often cost fractions of a cent. */
 // Cents from ten cents up ($0.43, $12.50); below that two significant digits
 // ($0.079, $0.0042), since agent runs are often cheap and $0.01 vs $0.01 hides
 // a 20% vs 15% difference.

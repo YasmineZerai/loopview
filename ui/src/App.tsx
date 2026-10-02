@@ -1,5 +1,5 @@
-// Layout: run list on the left, the graph in the middle, the activity feed or
-// the cost tab on the right. Details slide in over the graph; the playback bar and timeline are
+// Layout: run list on the left, the graph in the middle, the activity feed on
+// the right. The middle can switch to the cost tree (c). Details slide in over the graph; the playback bar and timeline are
 // a dock at the bottom, hidden until asked for (a small floating control remains).
 
 import { ReactFlowProvider, useReactFlow } from '@xyflow/react'
@@ -7,7 +7,7 @@ import { useEffect } from 'react'
 import { api, STATIC_DEMO, subscribe } from './api'
 import { DemoHint, useDemoAutoplay } from './components/DemoHint'
 import { ActivityFeed } from './components/ActivityFeed'
-import { CostPanel } from './components/cost/CostPanel'
+import { CostTree } from './components/cost/CostTree'
 import { DetailsPanel } from './components/details/DetailsPanel'
 import { EmptyState } from './components/EmptyState'
 import { GraphView } from './components/graph/GraphView'
@@ -27,6 +27,7 @@ export default function App() {
   const sidebarOpen = useStore((s) => s.sidebarOpen)
   const dockOpen = useStore((s) => s.dockOpen)
   const panel = useStore((s) => s.panel)
+  const view = useStore((s) => s.view)
 
   return (
     <ReactFlowProvider>
@@ -44,6 +45,7 @@ export default function App() {
           <main className="relative flex min-w-0 flex-1 flex-col">
             <div className="relative min-h-0 flex-1 overflow-hidden">
               {hasRuns ? <GraphView /> : <EmptyState />}
+              {hasRuns && view === 'cost' && <CostTree />}
               {hasRuns && !dockOpen && <MiniPlayback />}
               {STATIC_DEMO && hasRuns && <DemoHint />}
               <DetailsPanel />
@@ -61,7 +63,7 @@ export default function App() {
             className={`shrink-0 overflow-hidden border-l border-border bg-canvas transition-[width] duration-250 ease-out ${panel && hasRuns ? 'w-[380px]' : 'w-0'}`}
           >
             <div className="h-full w-[380px]">
-              {panel === 'cost' ? <CostPanel /> : <ActivityFeed />}
+              <ActivityFeed />
             </div>
           </aside>
         </div>
@@ -75,8 +77,9 @@ function TopBar() {
   const connected = useStore((s) => s.connected)
   const theme = useStore((s) => s.theme)
   const panel = useStore((s) => s.panel)
+  const view = useStore((s) => s.view)
   const expandAll = useStore((s) => s.expandAll)
-  const { toggleSidebar, toggleTheme, togglePanel, toggleExpandAll } = useStore.getState()
+  const { toggleSidebar, toggleTheme, togglePanel, setView, toggleExpandAll } = useStore.getState()
   const { fitView } = useReactFlow()
   const run = loaded?.run
   const button = 'flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[12px] text-muted hover:bg-overlay hover:text-text'
@@ -138,9 +141,9 @@ function TopBar() {
               <Activity size={14} /> Activity
             </button>
             <button
-              className={`${button} ${panel === 'cost' ? 'bg-overlay text-text' : ''}`}
-              onClick={() => togglePanel('cost')}
-              title="Show where the money goes (c)"
+              className={`${button} ${view === 'cost' ? 'bg-overlay text-text' : ''}`}
+              onClick={() => setView(view === 'cost' ? 'graph' : 'cost')}
+              title="Show where the money goes, as a tree (c)"
             >
               <Coin size={14} /> Cost
             </button>
@@ -169,7 +172,7 @@ function KeyboardShortcuts() {
       else if (e.key === 'f') fitView({ duration: 300, padding: 0.12 })
       else if (e.key === 't') store.toggleDock()
       else if (e.key === 'a') store.togglePanel('activity')
-      else if (e.key === 'c') store.togglePanel('cost')
+      else if (e.key === 'c') store.setView(store.view === 'cost' ? 'graph' : 'cost')
       else if (e.key === 'e') store.toggleExpandAll()
       else if (e.key === 'Escape') store.setSelectedKey(null)
     }

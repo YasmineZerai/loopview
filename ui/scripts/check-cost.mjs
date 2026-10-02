@@ -1,5 +1,5 @@
-// Dev-only: screenshot the Cost tab in both themes, for the whole run, one step,
-// mid-replay, and with a segment hovered.
+// Dev-only: screenshot the cost tree in both themes: the whole run, a hovered
+// branch, every step open, and mid-replay.
 // Usage: start a fresh server (`uv run loopview --port 4470 --no-browser`), then
 //   node scripts/check-cost.mjs http://127.0.0.1:4470 <out dir>
 import { chromium } from 'playwright'
@@ -18,29 +18,26 @@ await page.getByRole('button', { name: /Load the demo run/ }).click()
 await settle(1800)
 await state(() => {
   const s = window.__loopview.getState()
-  if (s.panel !== 'cost') s.togglePanel('cost')
   if (s.theme !== 'light') s.toggleTheme()
 })
+await page.keyboard.press('c')
+await page.mouse.move(5, 500)
 await settle()
 
 for (const theme of ['light', 'dark']) {
-  await page.screenshot({ path: `${out}/cost-run-${theme}.png` })
+  await page.screenshot({ path: `${out}/tree-run-${theme}.png` })
 
-  // Hover the largest segment of the main bar: its cards light up in the graph.
-  const bar = page.locator('aside .cost-cache').first()
-  if (await bar.count()) {
-    await bar.hover()
-    await settle(500)
-    await page.screenshot({ path: `${out}/cost-hover-${theme}.png` })
-    await page.mouse.move(10, 500)
-  }
+  // Hover an agent: its branch stays lit, the rest fades.
+  await page.locator('svg text', { hasText: 'ecosystem_analyst' }).first().hover()
+  await settle(500)
+  await page.screenshot({ path: `${out}/tree-hover-${theme}.png` })
+  await page.mouse.move(5, 500)
 
-  // Click the most expensive step: the tab filters to it and the graph centres it.
-  await page.getByRole('button').filter({ hasText: /\$0\.\d+$/ }).first().click()
-  await settle()
-  await page.screenshot({ path: `${out}/cost-step-${theme}.png` })
-  await page.keyboard.press('Escape')
-  await settle(600)
+  // Every step open.
+  await page.getByRole('button', { name: 'Open all steps' }).click()
+  await settle(900)
+  await page.screenshot({ path: `${out}/tree-open-${theme}.png` })
+  await page.getByRole('button', { name: 'Fold all steps' }).click()
 
   // Mid-replay: only what was spent by then.
   await state(() => {
@@ -49,7 +46,7 @@ for (const theme of ['light', 'dark']) {
     s.setPlayback({ time: run.start_ns + 9e9, playing: false })
   })
   await settle()
-  await page.screenshot({ path: `${out}/cost-replay-${theme}.png` })
+  await page.screenshot({ path: `${out}/tree-replay-${theme}.png` })
   await state(() => window.__loopview.getState().setPlayback({ time: Infinity, playing: false }))
   await state(() => window.__loopview.getState().toggleTheme())
   await settle()

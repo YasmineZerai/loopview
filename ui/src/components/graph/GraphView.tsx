@@ -31,7 +31,6 @@ export function GraphView() {
   const hoverKey = useStore((s) => s.hoverKey)
   const selectedKey = useStore((s) => s.selectedKey)
   const theme = useStore((s) => s.theme)
-  const costHighlight = useStore((s) => s.costHighlight)
   const focusRequest = useStore((s) => s.focusRequest)
   const { setSelectedKey, setHoverKey, toggleCollapsed, toggleExpanded } = useStore.getState()
   const { fitBounds, getInternalNode, getZoom, setCenter } = useReactFlow()
@@ -149,7 +148,6 @@ export function GraphView() {
   }, [focusRequest, getInternalNode, getZoom, setCenter])
 
   const { nodes, edges } = useMemo(() => {
-    const lit = new Set(costHighlight)
     if (!graph || !layout) return { nodes: [] as Node[], edges: [] as Edge[] }
     const flowNodes: (StepFlowNode | GroupFlowNode)[] = []
     const sorted = [...graph.nodes].sort((a, b) => a.depth - b.depth)
@@ -174,7 +172,6 @@ export function GraphView() {
         node,
         hue,
         highlighted: hoverKey === node.key,
-        costLit: lit.has(node.key),
         selected: selectedKey === node.key,
         onToggle: () => toggleCollapsed(node.key),
       }
@@ -214,7 +211,7 @@ export function GraphView() {
       }
     })
     return { nodes: flowNodes as Node[], edges: flowEdges as Edge[] }
-  }, [graph, layout, hues, hoverKey, costHighlight, selectedKey, toggleCollapsed, toggleExpanded, theme, expanded, callsByNode, time])
+  }, [graph, layout, hues, hoverKey, selectedKey, toggleCollapsed, toggleExpanded, theme, expanded, callsByNode, time])
 
   return (
     <div ref={container} className="h-full w-full">

@@ -40,9 +40,9 @@ interface State {
   sidebarOpen: boolean
   theme: Theme
   dockOpen: boolean // playback + timeline at the bottom
-  panel: SidePanel | null // the right-hand panel: activity feed or cost
+  panel: SidePanel | null // the right-hand panel
+  view: 'graph' | 'cost' // what the canvas shows
   costUnit: 'dollars' | 'tokens'
-  costHighlight: string[] // graph cards to highlight while a cost segment is hovered
   focusRequest: { key: string; at: number } | null // a card the graph should centre
 
   setRuns: (runs: RunInfo[]) => void
@@ -59,12 +59,12 @@ interface State {
   toggleTheme: () => void
   toggleDock: () => void
   togglePanel: (panel: SidePanel) => void
+  setView: (view: 'graph' | 'cost') => void
   setCostUnit: (unit: 'dollars' | 'tokens') => void
-  setCostHighlight: (keys: string[]) => void
   focusCard: (key: string) => void
 }
 
-export type SidePanel = 'activity' | 'cost'
+export type SidePanel = 'activity'
 
 export type Theme = 'light' | 'dark'
 
@@ -88,8 +88,7 @@ function savePref(key: string, value: string | boolean) {
 }
 
 function loadPanel(): SidePanel | null {
-  const saved = loadPref<string>('panel', 'activity')
-  return saved === 'activity' || saved === 'cost' ? saved : null
+  return loadPref<string>('panel', 'activity') === 'none' ? null : 'activity'
 }
 
 export function applyTheme(theme: Theme) {
@@ -117,8 +116,8 @@ export const useStore = create<State>((set, get) => ({
   theme: loadPref<Theme>('theme', 'light'),
   dockOpen: loadPref('dockOpen', false),
   panel: loadPanel(),
+  view: 'graph',
   costUnit: loadPref<'dollars' | 'tokens'>('costUnit', 'dollars'),
-  costHighlight: [],
   focusRequest: null,
 
   setRuns: (list) => {
@@ -202,11 +201,11 @@ export const useStore = create<State>((set, get) => ({
     savePref('panel', next ?? 'none')
     set({ panel: next })
   },
+  setView: (view) => set({ view }),
   setCostUnit: (costUnit) => {
     savePref('costUnit', costUnit)
     set({ costUnit })
   },
-  setCostHighlight: (costHighlight) => set({ costHighlight }),
   focusCard: (key) => set({ focusRequest: { key, at: Date.now() } }),
 }))
 
