@@ -154,3 +154,31 @@ One short entry per significant decision: what was chosen, what was rejected, an
 - **Chosen:** `vite build --mode pages` produces a static site that reads recorded runs from JSON files instead of a server, published to GitHub Pages by a workflow. The runs are normalized from the committed fixtures by the real server code during the CI build, so the demo can't drift from what the server would show. In this mode the API layer reads files, live features (SSE, import, export) are off, and the flagship run autoplays.
 - **Why:** a link people can open in a browser, with nothing to install, is the best first impression for a developer tool. One UI codebase, two builds, so the demo is always the real thing.
 - **Rejected:** hosting a live server (costs money, needs care) and a video only (can't be explored).
+
+## D38. Token usage: read what the conventions say, never invent it
+- **Chosen:** a `usage` object per model call (input, output, cache read, cache write, reasoning), replacing the old input/output pair. Each adapter reads its convention's names: GenAI (`gen_ai.usage.*`, plus Pydantic AI's own `gen_ai.usage.details.cache_*` names), OpenInference (`llm.token_count.*`, falling back to LangChain's raw `usage_metadata` for reasoning and cache tokens, which the instrumentor doesn't copy into attributes). A count that isn't in the trace stays empty. The findings per framework are in [docs/cost-data.md](docs/cost-data.md).
+- **Input includes cache tokens**, as both specs say. Anthropic's own `input_tokens` excludes them, so the hand-instrumented example adds them back.
+- **Fixtures re-captured:** the flagship analysts now share a long, cached handbook as their system prompt, so the recorded runs contain real cache writes and reads to test against.
+
+## D39. The cost split: estimate, then scale to the reported totals
+- **Problem:** providers report how many tokens a call used, not which part of the prompt they came from.
+- **Tokenizer:** characters divided by 4 for prose and 3 for JSON. Measured against the reported counts it lands within about 15% on prose. **Rejected:** a real tokenizer. Anthropic doesn't publish one for Claude, `tiktoken` is OpenAI's and would add a dependency without being right either, and the counting endpoint costs an API call per message.
+- **Segments:** system prompt, tool definitions, history, tool results, new input (after the last assistant message), cache reads, cache writes, thinking, reply. Each estimate is scaled so the segments add up exactly to the reported total.
+- **Unattributed rule:** scaling may stretch the estimate by at most 1.25x (`MAX_STRETCH`). If the recorded content explains less than 80% of the reported count, the rest is shown as "unattributed" instead of being spread over the known segments. Hiding a big gap inside "history" would look precise and be wrong.
+- **Tool prompt (provider):** with tools, Anthropic adds a system prompt the trace never contains (496 tokens on Claude Haiku 4.5). Before this segment, unattributed was about 60% of the input on calls with tools; after, about 10%. The size comes from the pricing file, per model, from Anthropic's docs.
+- **Cache:** cached tokens are a prefix of the prompt, so cache reads and writes are carved from the front, in prompt order (tool prompt, tool definitions, system, history...).
+- **Thinking:** taken from the reported reasoning tokens when present; otherwise estimated from the thinking text like the rest.
+- **Without content**, the call's whole cost is unattributed: the total is known, the split isn't.
+
+## D40. Cost colours: a neutral ink ramp
+- **Problem:** ten distinct segment colours that also stay clear of the eight agent hues and the state colours (green, red) proved impossible: validated palettes either collided with an agent hue or failed colour-blind separation.
+- **Chosen:** four shades of grey ink, one per group (instructions, conversation, cache, output), darkest first, plus a hatched pattern for unattributed, which is "unknown", not a category. Each theme has its own steps, checked as an ordered ramp against its own background. Segments inside a group are told apart by a 2px gap, labels when they fit, the hover tooltip and the breakdown table. Agent colours appear only as a dot next to an agent's name, so colour keeps meaning "which agent".
+
+## D41. Where the cost is computed
+- **Chosen:** the server computes each call's split once, when normalizing (`cost/split.py`, pure functions, tested with pytest). The UI only adds up the calls finished by the current moment (`costModel.ts`), so live view, replay, per agent and per step all come from the same numbers.
+- **Why:** the split needs the full message content, which the server already has; summing at a moment in time is the same model as `buildGraph(run, t)`. **Rejected:** computing everything in the browser (the content would be parsed twice and Python's tests couldn't cover it).
+- **Interaction:** clicking a card filters the tab to it (all its model calls, across loop iterations); a row in "most expensive steps" selects and centres its card; hovering a segment outlines the three cards where that segment costs most.
+
+## D42. Prices in an editable JSON file
+- **Chosen:** `cost/pricing.json`, one entry per model family with input, cache write (5 minutes), cache read and output prices per million tokens, the tool prompt size, a source URL and the date checked. A model ID matches the longest family name it starts with, so dated IDs (`claude-haiku-4-5-20251001`) need no entry of their own. `--prices FILE` merges a user's file over it.
+- **Why:** prices change; a JSON file can be checked and edited by anyone without touching code, and the source and date make every number auditable. Unknown models get no price rather than a guess: they show tokens only.

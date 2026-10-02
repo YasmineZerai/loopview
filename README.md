@@ -35,6 +35,7 @@ loopview draws the run as a graph that builds itself while the agent runs:
 - **Tool calls fire next to the step that made them**, and a failed call turns red.
 - **Every step can be opened** to read its thinking, its replies, and each tool call's arguments and result, right in the graph.
 - **Any run can be replayed** at 0.5x to 4x, with the graph and the activity feed on the same clock.
+- **The Cost tab shows where the money goes**: system prompt, tool definitions, history, cache, thinking, reply, per agent and per step.
 
 It works with **any framework that emits OpenTelemetry traces** (LangGraph, Pydantic AI, the OpenAI and Anthropic SDKs, or your own code), and it runs **on your machine**: one command, no account, no database, nothing sent anywhere.
 
@@ -60,6 +61,12 @@ It works with **any framework that emits OpenTelemetry traces** (LangGraph, Pyda
 </table>
 
 Or skip the screenshots: [**open the live demo**](https://yasminezerai.github.io/loopview/) in your browser. It replays recorded runs, nothing to install.
+
+## Where the money goes
+
+<img src="docs/screenshot-cost.png" alt="The Cost tab: the run's total, a bar splitting each dollar by where the tokens came from, cost per agent and the most expensive steps">
+
+The Cost tab (<kbd>c</kbd>) splits every dollar of a run into what was sent and received: system prompt, tool definitions, conversation history, tool results, cache reads and writes, thinking and the reply, for the whole run, per agent or for one step. Totals are the token counts your provider reported, priced from an editable file; the split between them is estimated from the recorded content, and whatever can't be explained is shown as "unattributed" rather than guessed.
 
 ## Quick start
 
@@ -228,11 +235,14 @@ Standard OpenTelemetry exporters send a span only when it **ends**, but a live v
 | <kbd>←</kbd> <kbd>→</kbd> | step through events |
 | <kbd>e</kbd> | open or close every step in the graph |
 | <kbd>a</kbd> | show or hide the activity feed |
+| <kbd>c</kbd> | show or hide the Cost tab |
 | <kbd>t</kbd> | show or hide the timeline |
 | <kbd>f</kbd> | fit the graph to the screen |
-| <kbd>esc</kbd> | close the details panel |
+| <kbd>esc</kbd> | close the details panel, and show the whole run's cost again |
 
-Runs can be exported as JSONL and imported by someone else, so you can share a trace. `loopview --help` lists the server options (`--port`, `--persist FILE`, `--max-runs`).
+Runs can be exported as JSONL and imported by someone else, so you can share a trace. `loopview --help` lists the server options (`--port`, `--persist FILE`, `--max-runs`, `--prices FILE`).
+
+Prices live in [`pricing.json`](server/src/loopview/cost/pricing.json), with a source link and the date each was checked. To add a model or correct a price, pass your own file with `--prices FILE`; its entries override the built-in ones. Models with no price are shown in tokens only.
 
 ## Limitations
 
@@ -242,6 +252,8 @@ Runs can be exported as JSONL and imported by someone else, so you can share a t
 - Without `loopview-sdk`, a running step with no finished children appears only when it ends.
 - Message content and thinking appear only if your instrumentation records them. For LangChain, thinking is read from the raw model output, because OpenInference's message attributes drop it.
 - Runs are kept in memory (200 by default); use `--persist` to keep them across restarts.
+- The cost split is an estimate: tokens are approximated from characters (about 4 per token for prose, 3 for JSON), then scaled to the reported totals. The totals themselves are exact. Prices cover Anthropic models for now, and use the 5 minute cache write rate.
+- Calls without recorded content show their total cost but no split. Calls whose framework reports no token counts are listed but not counted.
 
 ## Development
 
@@ -262,6 +274,8 @@ For UI work with hot reload, keep the server running and run `npm run dev` in `u
 - Recorded fixtures for the OpenAI SDK, the OpenAI Agents SDK and more frameworks.
 - A TypeScript `loopview-sdk` for Node agents.
 - Comparing two runs of the same agent side by side.
+- Cost per tool: how much each tool's definition and results cost across a run.
+- Prices for OpenAI, Google and other providers.
 
 ## License
 

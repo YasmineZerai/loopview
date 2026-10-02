@@ -64,4 +64,11 @@ await shot('screenshot-dark')
 await state(() => window.__loopview.getState().toggleDock())
 await state(() => window.__loopview.getState().toggleTheme())
 
+// 5. The Cost tab, whole flagship run.
+await at(null)
+await state(() => window.__loopview.getState().togglePanel('cost'))
+await settle()
+await shot('screenshot-cost')
+await state(() => window.__loopview.getState().togglePanel('activity'))
+
 await browser.close()
