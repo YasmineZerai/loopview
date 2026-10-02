@@ -17,7 +17,7 @@ from loopview.normalize.adapters.base import (
     as_int,
     maybe_json,
 )
-from loopview.normalize.schema import Message, MessagePart, ModelCall, ToolCall
+from loopview.normalize.schema import Message, MessagePart, ModelCall, ToolCall, Usage
 
 MODEL_OPERATIONS = {"chat", "text_completion", "generate_content", "embeddings"}
 TOOL_LIKE_OPERATIONS = {
@@ -126,9 +126,47 @@ def _model_call(span: RawSpan) -> ModelCall:
         model=attrs.get("gen_ai.response.model") or attrs.get("gen_ai.request.model"),
         input=inputs,
         output=outputs,
+        tool_definitions=_list(attrs.get("gen_ai.tool.definitions")),
+        usage=usage_from_attributes(attrs),
+    )
+
+
+# Token counts. The spec's names first, then the names instrumentations are known
+# to use instead (Pydantic AI writes gen_ai.usage.details.*, from the provider's
+# own field names). The spec defines input_tokens as including cache reads and
+# writes, and output_tokens as including reasoning.
+_CACHE_READ_KEYS = (
+    "gen_ai.usage.cache_read.input_tokens",
+    "gen_ai.usage.details.cache_read_input_tokens",
+)
+_CACHE_WRITE_KEYS = (
+    "gen_ai.usage.cache_write.input_tokens",
+    "gen_ai.usage.details.cache_creation_input_tokens",
+)
+
+
+def usage_from_attributes(attrs: dict[str, Any]) -> Usage | None:
+    usage = Usage(
         input_tokens=as_int(attrs.get("gen_ai.usage.input_tokens")),
         output_tokens=as_int(attrs.get("gen_ai.usage.output_tokens")),
+        cache_read_tokens=_first_int(attrs, _CACHE_READ_KEYS),
+        cache_write_tokens=_first_int(attrs, _CACHE_WRITE_KEYS),
+        reasoning_tokens=as_int(attrs.get("gen_ai.usage.reasoning.output_tokens")),
     )
+    return usage if usage.model_dump(exclude_none=True) else None
+
+
+def _first_int(attrs: dict[str, Any], keys: tuple[str, ...]) -> int | None:
+    for key in keys:
+        value = as_int(attrs.get(key))
+        if value is not None:
+            return value
+    return None
+
+
+def _list(value: Any) -> list[Any]:
+    value = maybe_json(value)
+    return value if isinstance(value, list) else []
 
 
 def _messages(value: Any) -> list[Message]:

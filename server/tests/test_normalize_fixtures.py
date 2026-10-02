@@ -66,7 +66,7 @@ def test_react_anthropic_single_agent() -> None:
     first = calls[0].model
     assert first is not None and first.provider == "anthropic"
     assert first.input[0].role == "system" and first.input[1].role == "user"
-    assert first.input_tokens and first.output_tokens
+    assert first.usage and first.usage.input_tokens and first.usage.output_tokens
     assert any(p.type == "tool_call" for m in first.output for p in m.parts)
     # Extended thinking, recorded as GenAI reasoning parts.
     assert first.output[0].parts[0].type == "reasoning" and first.output[0].parts[0].text
@@ -144,7 +144,9 @@ def test_langgraph_model_call_messages_and_tools() -> None:
         if any(p.type == "tool_call" for m in s.model.output for p in m.parts)
     )  # type: ignore[union-attr]
     assert call.model is not None
-    assert call.model.provider == "anthropic" and call.model.output_tokens
+    assert (
+        call.model.provider == "anthropic" and call.model.usage and call.model.usage.output_tokens
+    )
     tool_part = next(p for m in call.model.output for p in m.parts if p.type == "tool_call")
     assert tool_part.name and isinstance(tool_part.arguments, dict)
 

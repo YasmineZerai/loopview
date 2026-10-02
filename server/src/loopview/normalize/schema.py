@@ -39,13 +39,62 @@ class Message(BaseModel):
     parts: list[MessagePart]
 
 
+class Usage(BaseModel):
+    """Token counts as the provider reported them. None means "not reported",
+    which is different from 0. Both specs define the input count as including
+    cache reads and writes, and the output count as including thinking."""
+
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    cache_read_tokens: int | None = None  # part of input_tokens
+    cache_write_tokens: int | None = None  # part of input_tokens
+    reasoning_tokens: int | None = None  # part of output_tokens
+
+
+CostSegmentName = Literal[
+    "tool_prompt",
+    "tool_definitions",
+    "system",
+    "history",
+    "tool_results",
+    "new_input",
+    "cache_read",
+    "cache_write",
+    "thinking",
+    "reply",
+    "unattributed",
+]
+
+
+class CostSegment(BaseModel):
+    name: CostSegmentName
+    side: Literal["input", "output"]
+    tokens: int
+    dollars: float | None  # None when the model has no price
+
+
+class CallCost(BaseModel):
+    """Where a model call's tokens came from (see loopview/cost/split.py)."""
+
+    # estimated: split from recorded content, scaled to the reported counts
+    # content_not_recorded: reported counts, but nothing to split them with
+    # no_usage: the instrumentation reported no token counts at all
+    status: Literal["estimated", "content_not_recorded", "no_usage"]
+    segments: list[CostSegment] = []
+    tokens: int | None = None  # reported input + output
+    dollars: float | None = None  # None when the model has no price
+    price_key: str | None = None  # the pricing entry used
+    price_source: str | None = None
+
+
 class ModelCall(BaseModel):
     provider: str | None = None
     model: str | None = None
     input: list[Message] = []
     output: list[Message] = []
-    input_tokens: int | None = None
-    output_tokens: int | None = None
+    tool_definitions: list[Any] = []  # the tools the model was given, as recorded
+    usage: Usage | None = None  # None when the instrumentation reported no counts
+    cost: CallCost | None = None  # set by the normalizer
 
 
 class ToolCall(BaseModel):

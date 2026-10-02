@@ -64,6 +64,15 @@ TOOLS: list[dict[str, Any]] = [
 ]
 
 
+# The same tools in the GenAI spec's tool-definition format, recorded on every
+# model call so the trace shows what the model was given.
+TOOL_DEFINITIONS = json.dumps([
+    {"type": "function", "name": t["name"], "description": t["description"],
+     "parameters": t["input_schema"]}
+    for t in TOOLS
+])
+
+
 def run_tool(name: str, args: dict[str, Any]) -> Any:
     if name == "hotel_price":
         city = args["city"].strip().lower()
@@ -143,6 +152,7 @@ def main() -> None:
                     "gen_ai.request.model": model,
                     "gen_ai.system_instructions": json.dumps([{"type": "text", "content": system}]),
                     "gen_ai.input.messages": to_genai_messages(messages),
+                    "gen_ai.tool.definitions": TOOL_DEFINITIONS,
                 },
             ) as chat_span:
                 # Extended thinking, so the trace shows the model's reasoning. Claude
@@ -155,8 +165,22 @@ def main() -> None:
                 chat_span.set_attribute("gen_ai.response.model", response.model)
                 chat_span.set_attribute("gen_ai.response.id", response.id)
                 chat_span.set_attribute("gen_ai.response.finish_reasons", [response.stop_reason])
-                chat_span.set_attribute("gen_ai.usage.input_tokens", response.usage.input_tokens)
-                chat_span.set_attribute("gen_ai.usage.output_tokens", response.usage.output_tokens)
+                # Anthropic reports cache reads and writes apart from input_tokens; the
+                # GenAI spec wants input_tokens to include them, with the cache counts
+                # as sub-counts of their own.
+                usage = response.usage
+                cache_read = usage.cache_read_input_tokens or 0
+                cache_write = usage.cache_creation_input_tokens or 0
+                chat_span.set_attribute("gen_ai.usage.input_tokens", usage.input_tokens + cache_read + cache_write)
+                chat_span.set_attribute("gen_ai.usage.cache_read.input_tokens", cache_read)
+                chat_span.set_attribute("gen_ai.usage.cache_write.input_tokens", cache_write)
+                chat_span.set_attribute("gen_ai.usage.output_tokens", usage.output_tokens)
+                # Thinking tokens are part of output_tokens; recent API versions also
+                # report them on their own.
+                details = getattr(usage, "output_tokens_details", None)
+                thinking = getattr(details, "thinking_tokens", None) if details else None
+                if thinking is not None:
+                    chat_span.set_attribute("gen_ai.usage.reasoning.output_tokens", thinking)
                 chat_span.set_attribute(
                     "gen_ai.output.messages",
                     json.dumps([{

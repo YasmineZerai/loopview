@@ -19,6 +19,8 @@ Passes:
 import time
 from dataclasses import dataclass
 
+from loopview.cost.pricing import Pricing, default_pricing
+from loopview.cost.split import call_cost
 from loopview.ingest.raw import RawSpan
 from loopview.normalize.adapters import adapter_for
 from loopview.normalize.adapters.base import Classification, ParentHint, error_message
@@ -50,10 +52,13 @@ class _Draft:
     started_only: bool = False  # reported started by loopview-sdk, not ended yet
 
 
-def normalize_run(run: Run, now_ns: int | None = None) -> NormalizedRun:
+def normalize_run(
+    run: Run, now_ns: int | None = None, pricing: Pricing | None = None
+) -> NormalizedRun:
     now_ns = time.time_ns() if now_ns is None else now_ns
     stale = now_ns - run.last_received_ns > STALE_AFTER_NS
     drafts = _classify(run)
+    _add_costs(drafts, pricing or default_pricing())
     _add_inferred_parents(run, drafts, stale)
     _place_unclassified_starts(drafts)
     _decide_hidden(drafts)
@@ -92,6 +97,14 @@ def _classify(run: Run) -> dict[str, _Draft]:
             started_only=True,
         )
     return drafts
+
+
+def _add_costs(drafts: dict[str, _Draft], pricing: Pricing) -> None:
+    """Each finished model call gets its cost split. A call still running has no
+    usage yet, so it gets none."""
+    for d in drafts.values():
+        if d.c.model is not None and not d.started_only:
+            d.c.model.cost = call_cost(d.c.model, pricing)
 
 
 # --- pass 2 --------------------------------------------------------------------------

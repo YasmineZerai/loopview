@@ -16,6 +16,7 @@ Instrumented with the standard OpenInference LangChain instrumentor, nothing els
 Run live (needs ANTHROPIC_API_KEY):  uv run python -m demo.flagship
 """
 
+from pathlib import Path
 from typing import Annotated, Literal, TypedDict
 
 from langchain_anthropic import ChatAnthropic
@@ -35,6 +36,21 @@ TASK = (
     "5 users, about 20 GB of event data, loaded once a day. Recommend one."
 )
 
+# The team's standing instructions, shared by every analyst, the critic and the
+# writer. Long (about 4,300 tokens), so it is marked for prompt caching: the first
+# call writes it to the provider's cache and later calls read it at a tenth of the
+# price. That makes the Cost tab show cache writes and reads on a real run.
+# (Claude Haiku 4.5 only caches prefixes of 4,096 tokens or more.)
+HANDBOOK = (Path(__file__).parent / "handbook.md").read_text(encoding="utf-8")
+
+
+def with_handbook(instructions: str) -> SystemMessage:
+    """A system prompt made of the cached handbook, then the role's own instructions."""
+    return SystemMessage(content=[
+        {"type": "text", "text": HANDBOOK, "cache_control": {"type": "ephemeral"}},
+        {"type": "text", "text": instructions},
+    ])
+
 
 # --- a small reusable ReAct agent, built as its own subgraph -------------------------
 
@@ -46,9 +62,10 @@ class AgentState(TypedDict):
 def build_agent(name: str, instructions: str, tools: list[BaseTool], llm: ChatAnthropic):
     """model <-> tools loop, compiled as a named subgraph."""
     llm_with_tools = llm.bind_tools(tools)
+    system = with_handbook(instructions)
 
     def model(state: AgentState) -> dict:
-        return {"messages": [llm_with_tools.invoke([SystemMessage(instructions), *state["messages"]])]}
+        return {"messages": [llm_with_tools.invoke([system, *state["messages"]])]}
 
     graph = StateGraph(AgentState)
     graph.add_node("model", model)
@@ -141,8 +158,8 @@ def build_graph():  # type: ignore[no-untyped-def]
 
     def synthesize(state: State) -> dict:
         notes = "\n\n".join(f"{k}:\n{v}" for k, v in state["findings"].items())
-        prompt = [SystemMessage("Combine the analysts' findings into a short comparison "
-                                "(max 120 words) with a tentative recommendation."),
+        prompt = [with_handbook("You are the team lead. Combine the analysts' findings into a "
+                                "short comparison (max 120 words) with a tentative recommendation."),
                   HumanMessage(f"Task: {state['task']}\n\nFindings:\n{notes}")]
         if state.get("feedback"):
             prompt.append(HumanMessage(f"Revise it. Reviewer feedback: {state['feedback']}"))
@@ -152,7 +169,7 @@ def build_graph():  # type: ignore[no-untyped-def]
         reviews = state.get("reviews", 0) + 1
         if reviews == 1:
             feedback = thinker.invoke([
-                SystemMessage("You are a demanding reviewer. In one sentence, name the most "
+                with_handbook("You are a demanding reviewer. In one sentence, name the most "
                               "important thing this comparison should address better."),
                 HumanMessage(state["synthesis"]),
             ])

@@ -22,7 +22,7 @@ from loopview.normalize.adapters.base import (
     as_int,
     maybe_json,
 )
-from loopview.normalize.schema import Message, MessagePart, ModelCall, ToolCall
+from loopview.normalize.schema import Message, MessagePart, ModelCall, ToolCall, Usage
 
 TOOL_LIKE_KINDS = {
     "TOOL": "tool",
@@ -124,9 +124,88 @@ def _model_call(attrs: dict[str, Any]) -> ModelCall:
         model=attrs.get("llm.model_name"),
         input=_messages(attrs, "llm.input_messages."),
         output=output,
+        tool_definitions=_tool_definitions(attrs),
+        usage=_usage(attrs),
+    )
+
+
+def _tool_definitions(attrs: dict[str, Any]) -> list[Any]:
+    """llm.tools.N.tool.json_schema, in order."""
+    return [
+        maybe_json(t.get("tool.json_schema"))
+        for t in _group_by_index(attrs, "llm.tools.")
+        if t.get("tool.json_schema") is not None
+    ]
+
+
+def _usage(attrs: dict[str, Any]) -> Usage | None:
+    """Token counts from the spec's attributes, completed from the raw output.
+
+    The instrumentor leaves out cache attributes that are zero, and doesn't copy
+    reasoning (thinking) tokens into an attribute at all. Both are in the raw
+    output it also records, as LangChain's usage_metadata."""
+    raw = _raw_usage(attrs.get("output.value"))
+    usage = Usage(
         input_tokens=as_int(attrs.get("llm.token_count.prompt")),
         output_tokens=as_int(attrs.get("llm.token_count.completion")),
+        cache_read_tokens=_first(
+            attrs.get("llm.token_count.prompt_details.cache_read"), raw.get("cache_read")
+        ),
+        cache_write_tokens=_first(
+            attrs.get("llm.token_count.prompt_details.cache_write"), raw.get("cache_write")
+        ),
+        reasoning_tokens=_first(
+            attrs.get("llm.token_count.completion_details.reasoning"), raw.get("reasoning")
+        ),
     )
+    return usage if usage.model_dump(exclude_none=True) else None
+
+
+def _first(*values: Any) -> int | None:
+    for value in values:
+        if as_int(value) is not None:
+            return as_int(value)
+    return None
+
+
+def _raw_usage(raw: Any) -> dict[str, int]:
+    """Cache and reasoning counts from LangChain's usage_metadata in the raw output:
+    {"input_token_details": {"cache_read", "cache_creation", "ephemeral_5m_input_tokens",
+    "ephemeral_1h_input_tokens"}, "output_token_details": {"reasoning"}}.
+
+    LangChain's cache_creation can read 0 while the per-lifetime counts
+    (ephemeral_5m / ephemeral_1h) hold the cache writes, so the larger wins."""
+    found: dict[str, int] = {}
+
+    def walk(node: Any) -> None:
+        if isinstance(node, dict):
+            meta = node.get("usage_metadata")
+            if isinstance(meta, dict):
+                inputs = meta.get("input_token_details") or {}
+                outputs = meta.get("output_token_details") or {}
+                if "cache_read" in inputs:
+                    found["cache_read"] = as_int(inputs["cache_read"]) or 0
+                writes = [
+                    as_int(inputs.get(k))
+                    for k in (
+                        "cache_creation",
+                        "ephemeral_5m_input_tokens",
+                        "ephemeral_1h_input_tokens",
+                    )
+                ]
+                if any(w is not None for w in writes):
+                    found["cache_write"] = max(writes[0] or 0, (writes[1] or 0) + (writes[2] or 0))
+                if "reasoning" in outputs:
+                    found["reasoning"] = as_int(outputs["reasoning"]) or 0
+                return
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+
+    walk(maybe_json(raw))
+    return found
 
 
 def _reasoning_from_raw_output(raw: Any) -> list[str]:
