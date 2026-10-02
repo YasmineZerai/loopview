@@ -20,6 +20,7 @@ from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from loopview import __version__
+from loopview.cost.pricing import Pricing
 from loopview.ingest.otlp import (
     JSON,
     MAX_BODY_BYTES,
@@ -54,9 +55,10 @@ def create_app(
     store: TraceStore | None = None,
     capture: CaptureWriter | None = None,
     static_dir: Path = STATIC_DIR,
+    pricing: Pricing | None = None,
 ) -> FastAPI:
     store = store if store is not None else TraceStore()
-    hub = LiveHub(store)
+    hub = LiveHub(store, pricing)
     hub.mark(run.trace_id for run in store.runs())  # runs loaded from --persist
 
     @asynccontextmanager

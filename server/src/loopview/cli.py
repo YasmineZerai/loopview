@@ -15,6 +15,7 @@ import uvicorn
 
 from loopview import __version__
 from loopview.app import create_app, load_demo_into
+from loopview.cost.pricing import merged_pricing
 from loopview.live import LiveHub
 from loopview.store.capture import CaptureWriter, load_capture
 from loopview.store.memory import DEFAULT_MAX_RUNS, TraceStore
@@ -51,6 +52,12 @@ def main(argv: list[str] | None = None) -> None:
         default=DEFAULT_MAX_RUNS,
         help=f"how many recent runs to keep in memory (default: {DEFAULT_MAX_RUNS})",
     )
+    parser.add_argument(
+        "--prices",
+        type=Path,
+        metavar="FILE",
+        help="JSON file of model prices, replacing the bundled ones (see cost/pricing.json)",
+    )
     parser.add_argument("--no-browser", action="store_true", help="don't open the browser")
     parser.add_argument("--version", action="version", version=f"loopview {__version__}")
     args = parser.parse_args(argv)
@@ -79,7 +86,7 @@ def main(argv: list[str] | None = None) -> None:
         # Give the server a moment to start listening before the browser asks.
         url = f"http://{args.host}:{args.port}"
         threading.Timer(1.0, webbrowser.open, args=[url]).start()
-    app = create_app(store=store, capture=capture)
+    app = create_app(store=store, capture=capture, pricing=merged_pricing(args.prices))
     server = _Server(
         uvicorn.Config(app, host=args.host, port=args.port, log_level="warning"), app.state.hub
     )

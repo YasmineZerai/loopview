@@ -18,6 +18,7 @@ import contextlib
 import time
 from collections.abc import AsyncIterator, Iterable
 
+from loopview.cost.pricing import Pricing
 from loopview.normalize.normalizer import normalize_run
 from loopview.normalize.schema import NormalizedRun, RunInfo
 from loopview.store.memory import TraceStore
@@ -31,8 +32,9 @@ MAX_QUEUED_EVENTS = 1000
 
 
 class LiveHub:
-    def __init__(self, store: TraceStore) -> None:
+    def __init__(self, store: TraceStore, pricing: Pricing | None = None) -> None:
         self.store = store
+        self.pricing = pricing  # None: the bundled prices
         self._dirty: set[str] = set()
         self._cache: dict[str, NormalizedRun] = {}
         # Per run, the JSON of each step as last pushed, to send only what changed.
@@ -51,7 +53,7 @@ class LiveHub:
             run = self.store.get_run(trace_id)
             if run is None:
                 return None
-            self._cache[trace_id] = normalize_run(run)
+            self._cache[trace_id] = normalize_run(run, pricing=self.pricing)
         return self._cache[trace_id]
 
     def run_infos(self) -> list[RunInfo]:
@@ -121,7 +123,7 @@ class LiveHub:
                 self._cache.pop(trace_id, None)
                 self._pushed.pop(trace_id, None)
                 continue
-            normalized = normalize_run(run)
+            normalized = normalize_run(run, pricing=self.pricing)
             self._cache[trace_id] = normalized
             pushed = self._pushed.setdefault(trace_id, {})
             changed = []
