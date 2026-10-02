@@ -1,0 +1,47 @@
+name: Demo site
+
+# Publishes the hosted demo (a static build of the UI with recorded runs) to
+# GitHub Pages on every push to main. One-time setup in the repository:
+# Settings -> Pages -> Build and deployment -> Source: GitHub Actions.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      # The recorded runs, normalized by the real server code from the fixtures.
+      - run: cd server && uv sync --locked && uv run python -m loopview.devtools.dump_normalized ../ui/pages-public/demo --index
+      - run: cd ui && npm ci && npm run build:pages
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ui/dist-pages
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

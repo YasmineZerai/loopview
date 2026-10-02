@@ -4,7 +4,8 @@
 
 import { ReactFlowProvider, useReactFlow } from '@xyflow/react'
 import { useEffect } from 'react'
-import { api, subscribe } from './api'
+import { api, STATIC_DEMO, subscribe } from './api'
+import { DemoHint, useDemoAutoplay } from './components/DemoHint'
 import { ActivityFeed } from './components/ActivityFeed'
 import { DetailsPanel } from './components/details/DetailsPanel'
 import { EmptyState } from './components/EmptyState'
@@ -20,6 +21,7 @@ import { formatDuration } from './theme'
 export default function App() {
   useLiveUpdates()
   usePlaybackClock()
+  useDemoAutoplay()
   const hasRuns = useStore((s) => s.runs.size > 0)
   const sidebarOpen = useStore((s) => s.sidebarOpen)
   const dockOpen = useStore((s) => s.dockOpen)
@@ -42,6 +44,7 @@ export default function App() {
             <div className="relative min-h-0 flex-1 overflow-hidden">
               {hasRuns ? <GraphView /> : <EmptyState />}
               {hasRuns && !dockOpen && <MiniPlayback />}
+              {STATIC_DEMO && hasRuns && <DemoHint />}
               <DetailsPanel />
             </div>
             {hasRuns && dockOpen && (
@@ -95,10 +98,20 @@ function TopBar() {
         </div>
       )}
       <div className="ml-auto flex items-center gap-1">
-        <span className="mr-2 flex items-center gap-1.5 text-[11.5px] text-muted" title={connected ? 'Receiving live updates' : 'Reconnecting'}>
-          <span className={`h-1.5 w-1.5 rounded-full ${connected ? 'bg-state-ok' : 'bg-state-idle'}`} />
-          {connected ? 'connected' : 'offline'}
-        </span>
+        {STATIC_DEMO ? (
+          <a
+            className="mr-1 flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-[11.5px] text-muted hover:text-text"
+            href="https://github.com/YasmineZerai/loopview"
+            title="These are recorded runs. Install loopview to watch your own agents live."
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-accent" /> Recorded demo · Get loopview
+          </a>
+        ) : (
+          <span className="mr-2 flex items-center gap-1.5 text-[11.5px] text-muted" title={connected ? 'Receiving live updates' : 'Reconnecting'}>
+            <span className={`h-1.5 w-1.5 rounded-full ${connected ? 'bg-state-ok' : 'bg-state-idle'}`} />
+            {connected ? 'connected' : 'offline'}
+          </span>
+        )}
         {run && (
           <>
             <button className={button} onClick={() => fitView({ duration: 300, padding: 0.12 })} title="Fit to screen (f)">
@@ -111,9 +124,11 @@ function TopBar() {
             >
               <Expand size={14} /> {expandAll ? 'Collapse all' : 'Expand all'}
             </button>
-            <a className={button} href={api.exportUrl(run.id)} title="Export this run as JSONL">
-              <Download size={14} /> Export
-            </a>
+            {!STATIC_DEMO && (
+              <a className={button} href={api.exportUrl(run.id)} title="Export this run as JSONL">
+                <Download size={14} /> Export
+              </a>
+            )}
             <button
               className={`${button} ${activityOpen ? 'bg-overlay text-text' : ''}`}
               onClick={toggleActivity}

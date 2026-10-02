@@ -1,7 +1,7 @@
 // The left sidebar: recent runs, grouped by session when runs share one.
 
 import { useRef } from 'react'
-import { api } from '../api'
+import { api, STATIC_DEMO } from '../api'
 import { useStore } from '../store'
 import { formatDuration, timeAgo } from '../theme'
 import type { RunInfo } from '../types'
@@ -25,7 +25,7 @@ export function RunList() {
       <div className="flex h-11 shrink-0 items-center justify-between border-b border-border px-4">
         <span className="text-[11px] uppercase tracking-wider text-muted">Runs</span>
         <button
-          className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[11.5px] text-muted hover:bg-overlay hover:text-text"
+          className={`flex items-center gap-1.5 rounded-md px-2 py-1 text-[11.5px] text-muted hover:bg-overlay hover:text-text ${STATIC_DEMO ? 'hidden' : ''}`}
           onClick={() => fileInput.current?.click()}
           title="Import a run exported as JSONL"
         >
