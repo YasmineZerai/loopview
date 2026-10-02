@@ -1,84 +1,186 @@
+<div align="center">
+
+<img src="docs/logo.svg" width="72" alt="loopview logo">
+
 # loopview
 
-![loopview replaying a multi-agent run](docs/demo.gif)
+**Watch your AI agents run as a live graph, from any OpenTelemetry trace.**
 
-loopview shows what your AI agents are doing as a live graph: which agent or node is running, which tools it calls, what comes back, and where control goes next.
+See which agent is working, what it thinks, which tools it calls, what comes back, and where control goes next. While it happens.
 
-## Why
+[![CI](https://github.com/YasmineZerai/loopview/actions/workflows/ci.yml/badge.svg)](https://github.com/YasmineZerai/loopview/actions/workflows/ci.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776ab.svg)
+![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-native-7c9cff.svg)
+![Local first](https://img.shields.io/badge/local--first-no%20account%2C%20no%20cloud-22d3ee.svg)
 
-Most tracing tools show agent runs as trees, waterfalls and lists. Those are good for reading a run after the fact. loopview draws the run as a graph that builds itself while the agent runs: agents are groups, steps are nodes, control flow travels along the edges, tool calls fire next to the step that made them, loops show as an edge back with a counter. It works with any framework that emits OpenTelemetry traces, and it runs on your machine with no account and no cloud.
+[**Try the live demo**](https://yasminezerai.github.io/loopview/) · [Quick start](#quick-start) · [Connect your agent](#connect-your-agent) · [How it works](#how-it-works) · [Design decisions](DECISIONS.md)
+
+<br>
+
+<img src="docs/demo.gif" alt="loopview replaying a multi-agent run: a supervisor, three analysts in parallel, a failing tool, a critic loop and a handoff" width="100%">
+
+</div>
+
+<br>
+
+## Why loopview
+
+Agent runs are hard to follow. An agent decides on its own which tool to call, loops, hands off to another agent, or splits work across several agents running in parallel. Most tracing tools show this as a tree or a waterfall, which is good for reading a run after the fact and poor at showing the *flow*.
+
+loopview draws the run as a graph that builds itself while the agent runs:
+
+- **Agents are groups, steps are cards**, each agent in its own colour.
+- **Control flow moves along the edges.** Parallel branches run side by side, loops show as an arc back with a counter, handoffs as an edge between agents.
+- **Tool calls fire next to the step that made them**, and a failed call turns red.
+- **Every step can be opened** to read its thinking, its replies, and each tool call's arguments and result, right in the graph.
+- **Any run can be replayed** at 0.5x to 4x, with the graph and the activity feed on the same clock.
+
+It works with **any framework that emits OpenTelemetry traces** (LangGraph, Pydantic AI, the OpenAI and Anthropic SDKs, or your own code), and it runs **on your machine**: one command, no account, no database, nothing sent anywhere.
+
+## See it
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshot-graph.png" alt="A supervisor with three analysts running in parallel, and the activity feed"></td>
+    <td width="50%"><img src="docs/screenshot-expanded.png" alt="A step opened in the graph, showing the model's thinking and tool calls"></td>
+  </tr>
+  <tr>
+    <td><b>Parallel agents, live.</b> Three analysts work at the same time. The feed on the right shows what each one thinks, says and does.</td>
+    <td><b>Open any step.</b> Its thinking, replies, and every tool call with arguments and results, inside the graph.</td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshot-multi-agent.png" alt="A coordinator agent delegating to two researcher agents, then handing off to a writer"></td>
+    <td width="50%"><img src="docs/screenshot-dark.png" alt="Dark theme with the timeline open, one lane per agent"></td>
+  </tr>
+  <tr>
+    <td><b>Agents inside agents.</b> A coordinator delegates to two researchers in parallel, then hands off to a writer.</td>
+    <td><b>Timeline and replay</b>, one lane per agent, in light or dark.</td>
+  </tr>
+</table>
+
+Or skip the screenshots: [**open the live demo**](https://yasminezerai.github.io/loopview/) in your browser. It replays recorded runs, nothing to install.
 
 ## Quick start
 
-```sh
-uvx loopview demo
-```
-
-(Until the package is on PyPI, run it from a checkout: see [Development](#development).)
-
-This opens the browser on a recorded run of the flagship demo: a supervisor, three analysts working in parallel, a tool that fails and is retried, a critic that sends the work back once, and a handoff to a writer. No API key needed. Press space to replay it.
-
-To watch your own agent:
+Requirements: Python 3.11+, [uv](https://docs.astral.sh/uv/) and Node 22+ (Node only to build the UI once).
 
 ```sh
-uvx loopview            # UI and OTLP endpoint on http://127.0.0.1:4318
+git clone https://github.com/YasmineZerai/loopview
+cd loopview/ui && npm install && npm run build
+cd ../server && uv run loopview demo
 ```
 
-then, in the shell that runs your agent:
+Your browser opens on a recorded multi-agent run. No API key needed. Press <kbd>space</kbd> to replay it.
+
+To watch your own agent, start it without `demo`:
 
 ```sh
-export OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://127.0.0.1:4318/v1/traces
-export OTEL_BSP_SCHEDULE_DELAY=100
+uv run loopview      # UI and OTLP endpoint on http://127.0.0.1:4318
 ```
 
-and run it. `loopview --help` lists the options (`--port`, `--persist FILE` to keep runs across restarts, `--max-runs`).
+and point your agent's exporter at it (next section). Once published to PyPI, this becomes `uvx loopview`.
 
-loopview accepts OTLP over HTTP (protobuf or JSON). If your setup uses the gRPC exporter, switch to the HTTP one (`opentelemetry-exporter-otlp-proto-http` in Python).
+## Connect your agent
 
-## Setup per framework
+loopview receives standard OpenTelemetry traces at **`http://127.0.0.1:4318/v1/traces`** (OTLP over HTTP). Your agent needs two things: an OpenTelemetry exporter pointed there, and tracing turned on for its framework.
 
-Every setup is the same idea: make your framework emit OpenTelemetry spans and send them to loopview with the standard OTLP/HTTP exporter. The examples in [`examples/`](examples/) are complete, runnable versions; the ones marked "tested" have a recorded trace in [`fixtures/`](fixtures/) that the test suite runs against.
+**1. Install and set up the exporter** (once, at the start of your program):
 
-The common part, in Python:
+```sh
+pip install opentelemetry-sdk opentelemetry-exporter-otlp-proto-http
+```
 
 ```python
 from opentelemetry import trace
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 
 provider = TracerProvider()
-provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))  # reads the env vars above
+provider.add_span_processor(BatchSpanProcessor(
+    OTLPSpanExporter(endpoint="http://127.0.0.1:4318/v1/traces"),
+    schedule_delay_millis=100,  # send every 100 ms instead of every 5 s
+))
 trace.set_tracer_provider(provider)
 ```
 
-**LangGraph and LangChain** (tested, OpenInference). Install `openinference-instrumentation-langchain`, then:
+**2. Turn on tracing for your framework:**
+
+<details>
+<summary><b>LangGraph / LangChain</b> (tested)</summary>
+
+```sh
+pip install openinference-instrumentation-langchain
+```
 
 ```python
 from openinference.instrumentation.langchain import LangChainInstrumentor
 LangChainInstrumentor().instrument(tracer_provider=provider)
 ```
 
-Graph nodes, conditional routing, loops and subgraphs are recognised from LangGraph's run metadata. See `examples/langgraph_router.py` and `examples/demo/flagship.py`.
+Graph nodes, conditional routing, loops and subgraphs are recognised from LangGraph's run metadata. Examples: [`examples/langgraph_router.py`](examples/langgraph_router.py), [`examples/demo/flagship.py`](examples/demo/flagship.py).
+</details>
 
-**Pydantic AI** (tested, OpenTelemetry GenAI conventions, built in):
+<details>
+<summary><b>Pydantic AI</b> (tested)</summary>
 
 ```python
 from pydantic_ai import Agent
 Agent.instrument_all()
 ```
 
-See `examples/multi_agent_pydantic.py` (agents delegating in parallel, then a handoff).
+Pydantic AI emits the OpenTelemetry GenAI conventions natively. Example: [`examples/multi_agent_pydantic.py`](examples/multi_agent_pydantic.py).
+</details>
 
-**Anthropic SDK, hand-rolled agent loop** (tested). Wrap your loop in spans that follow the GenAI conventions: `invoke_agent {name}` around the run, `chat {model}` around each model call, `execute_tool {tool}` around each tool. `examples/react_anthropic.py` is a complete, commented example.
+<details>
+<summary><b>Anthropic SDK, or your own agent loop</b> (tested)</summary>
 
-**OpenAI SDK.** Install `openinference-instrumentation-openai` and call `OpenAIInstrumentor().instrument(tracer_provider=provider)`.
+Wrap your loop in spans that follow the OpenTelemetry GenAI conventions: `invoke_agent {name}` around the run, `chat {model}` around each model call, `execute_tool {tool}` around each tool. [`examples/react_anthropic.py`](examples/react_anthropic.py) is a complete, commented example, including extended thinking.
+</details>
 
-**OpenAI Agents SDK.** Install `openinference-instrumentation-openai-agents` and call `OpenAIAgentsInstrumentor().instrument(tracer_provider=provider)`.
+<details>
+<summary><b>OpenAI SDK</b></summary>
 
-The last two follow the same OpenInference conventions as the tested LangGraph path but have no recorded fixture yet.
+```sh
+pip install openinference-instrumentation-openai
+```
 
-**Anything that speaks OpenTelemetry.** Spans that follow the GenAI conventions (`gen_ai.*`) or OpenInference (`openinference.span.kind`) are understood. Any other span is still shown, as a generic step with its attributes, never dropped. A plain HTTP service with OpenTelemetry tracing shows up as a graph of its operations.
+```python
+from openinference.instrumentation.openai import OpenAIInstrumentor
+OpenAIInstrumentor().instrument(tracer_provider=provider)
+```
+</details>
+
+<details>
+<summary><b>OpenAI Agents SDK</b></summary>
+
+```sh
+pip install openinference-instrumentation-openai-agents
+```
+
+```python
+from openinference.instrumentation.openai_agents import OpenAIAgentsInstrumentor
+OpenAIAgentsInstrumentor().instrument(tracer_provider=provider)
+```
+</details>
+
+<details>
+<summary><b>Anything else that speaks OpenTelemetry</b></summary>
+
+Spans that follow the GenAI conventions (`gen_ai.*`) or OpenInference (`openinference.span.kind`) are understood. Any other span is still shown, as a generic step with its attributes. Nothing is dropped.
+</details>
+
+**3. Run your agent.** It appears in loopview's run list and the graph builds itself as it runs.
+
+<details>
+<summary><b>Nothing shows up?</b></summary>
+
+- The endpoint must end in `/v1/traces`, and the exporter must be the **HTTP** one (`...otlp.proto.http...`), not gRPC.
+- The setup must run before your agents or LLM clients are created.
+- Short scripts can exit before spans are sent: call `provider.shutdown()` at the end.
+- The top right of loopview should say "connected".
+</details>
 
 ## How it works
 
@@ -86,90 +188,81 @@ The last two follow the same OpenInference conventions as the tested LangGraph p
 flowchart LR
     A[Your agent] -- OTLP/HTTP --> R[Receiver<br/>/v1/traces]
     S[loopview-sdk<br/>optional] -- span starts --> R2[/v1/loopview/span-starts/]
-    R --> ST[Store<br/>ring buffer of runs]
+    R --> ST[Store<br/>runs and sessions]
     R2 --> ST
     ST --> N[Normalizer<br/>one adapter per convention]
-    N --> T[Transition<br/>derivation]
+    N --> T[Transitions]
     T --> H[Live hub<br/>SSE, 10 updates/s]
-    H --> UI[Browser<br/>graph, timeline, replay]
+    H --> UI[Browser<br/>graph, feed, replay]
     ST -. --persist .-> F[(JSONL file)]
 ```
 
-1. **Receiver.** Decodes OTLP export requests (protobuf or JSON, gzip or not) into raw spans.
-2. **Store.** Groups spans into runs by trace id and runs into sessions by `gen_ai.conversation.id` or `session.id`. Keeps the most recent 200 runs in memory; `--persist` also appends every request to a JSONL file.
-3. **Normalizer.** Turns raw spans from any convention into one small schema the UI understands: agents, nodes, model calls, tool calls, and unknown steps. There is one adapter per convention (`gen_ai`, `openinference`, `generic`); adding a convention means adding one adapter.
-4. **Transitions.** Derived from timing and nesting with one rule: within the same agent or graph, step A leads to step B when A ended before B started and no other step sits between them. That rule produces sequences, parallel fan out and fan in, loops (an edge back to a node that already ran) and handoffs.
-5. **Live hub.** Every 100 ms, re-normalizes the runs that changed and pushes only the steps that changed to the browser over Server-Sent Events.
-6. **UI.** React and React Flow, laid out with ELK in a Web Worker. Replay rebuilds the graph at any moment from span timestamps.
+1. **Receiver.** Decodes OTLP export requests (protobuf or JSON) into raw spans.
+2. **Store.** Groups spans into runs by trace id, and runs into sessions by conversation id. Keeps the 200 most recent runs in memory; `--persist FILE` also saves them to a file.
+3. **Normalizer.** Every framework describes the same things differently. One adapter per convention (`gen_ai`, `openinference`, `generic`) turns spans into one small schema: agents, steps, model calls (with messages and thinking) and tool calls (with arguments and results).
+4. **Transitions.** No framework says "control went from A to B", so loopview derives it with one rule: within the same agent or graph, A leads to B when A ended before B started and no other step sits between them. That one rule gives sequences, parallel fan out and fan in, loops and handoffs.
+5. **Live hub.** Every 100 ms, pushes the steps that changed to the browser over Server-Sent Events.
+6. **UI.** React and React Flow, laid out with ELK in a Web Worker. The graph is computed for a moment in time, so live view and replay are the same code.
 
-## Liveness: what "live" means
+Every design choice, with the alternatives that were rejected and why, is in [DECISIONS.md](DECISIONS.md).
 
-Standard OpenTelemetry exporters send a span only when it ends. A live view also needs to know when a step starts. loopview handles this in two layers.
+### Live, even though spans arrive at the end
 
-**With any exporter (default).** Children end before their parents, so when a child span arrives for a parent loopview hasn't seen, the parent must still be running. loopview shows it as running, named from what the child tells it (LangGraph metadata names the node, GenAI attributes name the agent). The cost: a step with no finished children is invisible until it ends, and updates arrive in batches. Set `OTEL_BSP_SCHEDULE_DELAY=100` so batches go out every 100 ms instead of the default 5 s.
+Standard OpenTelemetry exporters send a span only when it **ends**, but a live view needs to know when a step **starts**. loopview handles this in two layers:
 
-**With `loopview-sdk` (optional).** A tiny span processor that also reports when each span starts:
+- **With any exporter.** A child ends before its parent, so when a child arrives for a parent loopview hasn't seen yet, the parent must still be running. loopview shows it as running, named from what the child tells it.
+- **With `loopview-sdk` (optional).** A small span processor that also reports when each span starts, so steps light up the moment they begin:
 
-```python
-from loopview_sdk import LiveStartProcessor
-provider.add_span_processor(LiveStartProcessor())
-```
+  ```python
+  from loopview_sdk import LiveStartProcessor
+  provider.add_span_processor(LiveStartProcessor())
+  ```
 
-Steps then light up the moment they begin, with their real names. It sends from a background thread and drops reports if loopview isn't running, so it never slows the agent down. Some instrumentations (OpenInference for LangChain) only set attributes when a span ends; for those, a started step is shown by position (a direct child of a graph or agent) and gets its full detail when it ends.
+  It sends from a background thread and silently drops reports if loopview isn't running, so it never slows your agent down.
 
-## What you see
+## Using it
 
-- **The graph** fills the middle: agents as coloured groups, steps as cards, tools as small pills on the step that called them, loops as arcs with a counter. Open a card (its chevron, or `e` for all of them) to read its calls right in the graph: thinking, replies, tool arguments and results, run by run.
-- **The activity feed** on the right shows what the agents think, say and do, in order: each model call's thinking (when the model uses extended thinking), its reply, the tools it asked for, and each tool call with its arguments and its result or error. Hover an entry to find its step in the graph; click to open the step's details.
-- **The details panel** opens when you click a step: every execution, each model call as a conversation, and each tool call with its full arguments and result.
-- **The timeline** is hidden until you want it (the small control at the bottom, or `t`).
+| Key | Does |
+|---|---|
+| <kbd>space</kbd> | play or pause the replay |
+| <kbd>←</kbd> <kbd>→</kbd> | step through events |
+| <kbd>e</kbd> | open or close every step in the graph |
+| <kbd>a</kbd> | show or hide the activity feed |
+| <kbd>t</kbd> | show or hide the timeline |
+| <kbd>f</kbd> | fit the graph to the screen |
+| <kbd>esc</kbd> | close the details panel |
 
-Light and dark themes are both available (the button at the top right).
-
-## Replay, import and export
-
-Any finished run can be replayed at 0.5x, 1x, 2x or 4x with a scrubber. Replay uses span timestamps, so it shows what really happened, without the exporter's batching delays. The graph and the activity feed follow the same clock. Runs export as JSONL (one OTLP request per line) and import through the run list, so you can share a trace.
-
-Keyboard: `space` play or pause, `left` and `right` step through events, `t` show or hide the timeline, `a` show or hide the activity feed, `e` expand or collapse every card, `f` fit the graph to the screen, `esc` close the details panel.
+Runs can be exported as JSONL and imported by someone else, so you can share a trace. `loopview --help` lists the server options (`--port`, `--persist FILE`, `--max-runs`).
 
 ## Limitations
 
 - OTLP over HTTP only; gRPC is not supported yet.
-- Transitions are inferred from timing and nesting. When two sibling steps have identical timestamps (coarse clocks), their order can be ambiguous.
-- Traces that span several services: a span whose parent lives in another service is shown under an inferred parent named after the service.
-- Without `loopview-sdk`, a running step with no finished children is not visible until it ends.
-- Message content is shown only if your instrumentation records it (both conventions make it opt-in).
-- Thinking appears only when the model uses extended thinking. OpenInference's message attributes drop thinking, so for LangChain it is read from the raw model output the instrumentor also records.
+- Transitions are inferred from timing and nesting. Sibling steps with identical timestamps can be ordered ambiguously.
+- A span whose parent lives in another service is shown under an inferred parent named after that service.
+- Without `loopview-sdk`, a running step with no finished children appears only when it ends.
+- Message content and thinking appear only if your instrumentation records them. For LangChain, thinking is read from the raw model output, because OpenInference's message attributes drop it.
 - Runs are kept in memory (200 by default); use `--persist` to keep them across restarts.
 
 ## Development
 
-Requirements: Python 3.11+, [uv](https://docs.astral.sh/uv/), Node 22+.
-
-```sh
-cd ui && npm install && npm run build      # builds the UI into the Python package
-cd ../server && uv run loopview demo       # http://127.0.0.1:4318
-```
-
-For UI work with hot reload, keep the server running and run `npm run dev` in `ui/`.
-
 | Part | What | Tests |
 |---|---|---|
-| `server/` | receiver, store, normalizer, transitions, live hub, CLI | `uv run pytest` |
-| `ui/` | React UI | `npm test` (Vitest) |
-| `sdk/` | `loopview-sdk` | `uv run pytest` |
-| `examples/` | example agents, flagship demo, fixture capture | needs `ANTHROPIC_API_KEY` |
-| `fixtures/` | traces recorded from real framework runs | used by server and UI tests |
+| [`server/`](server/) | receiver, store, normalizer, transitions, live hub, CLI | `uv run pytest` |
+| [`ui/`](ui/) | React UI | `npm test` (Vitest) |
+| [`sdk/`](sdk/) | `loopview-sdk` | `uv run pytest` |
+| [`examples/`](examples/) | example agents, flagship demo, fixture capture | needs `ANTHROPIC_API_KEY` |
+| [`fixtures/`](fixtures/) | traces recorded from real framework runs | used by server and UI tests |
 
-Design decisions, with what was rejected and why, are in [DECISIONS.md](DECISIONS.md).
+For UI work with hot reload, keep the server running and run `npm run dev` in `ui/`. See [CONTRIBUTING.md](CONTRIBUTING.md) for the rest.
 
 ## Roadmap
 
+- Publish to PyPI, so it starts with `uvx loopview`.
 - OTLP over gRPC.
-- Fixtures for the OpenAI SDK, OpenAI Agents SDK and more frameworks.
+- Recorded fixtures for the OpenAI SDK, the OpenAI Agents SDK and more frameworks.
 - A TypeScript `loopview-sdk` for Node agents.
-- Diffing two runs of the same agent.
+- Comparing two runs of the same agent side by side.
 
 ## License
 
-Apache-2.0
+[Apache-2.0](LICENSE)

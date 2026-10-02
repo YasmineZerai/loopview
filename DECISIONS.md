@@ -149,3 +149,8 @@ One short entry per significant decision: what was chosen, what was rejected, an
 - **Problem:** with details in a side feed and a panel, reading a step still meant looking away from the graph.
 - **Chosen:** every card with model or tool calls can expand in place to show them (thinking, replies, tool arguments and results), split by run when the node ran several times, on the same clock as the graph. The feed and the cards share one set of call views (`CallViews.tsx`), so a call reads the same everywhere.
 - **Fixed size:** an expanded card is 400 x 380 and scrolls inside, so the layout changes once when a card opens, not every time text arrives. Which cards are open is part of the layout key. Loop arcs use the cards' real tops (`useInternalNode`) so they pass over tall cards instead of through them.
+
+## D37. A hosted demo, built from the same UI
+- **Chosen:** `vite build --mode pages` produces a static site that reads recorded runs from JSON files instead of a server, published to GitHub Pages by a workflow. The runs are normalized from the committed fixtures by the real server code during the CI build, so the demo can't drift from what the server would show. In this mode the API layer reads files, live features (SSE, import, export) are off, and the flagship run autoplays.
+- **Why:** a link people can open in a browser, with nothing to install, is the best first impression for a developer tool. One UI codebase, two builds, so the demo is always the real thing.
+- **Rejected:** hosting a live server (costs money, needs care) and a video only (can't be explored).
