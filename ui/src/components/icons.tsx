@@ -83,6 +83,9 @@ export const Thought = ({ size, className }: P) => (
 export const ArrowRight = ({ size, className }: P) => (
   <svg {...base(size)} className={className}><path d="M5 12h14M13 6l6 6-6 6" /></svg>
 )
-export const Expand = ({ size, className }: P) => (
+export const Coin = ({ size, className }: P) => (
+  <svg {...base(size)} className={className}><circle cx="12" cy="12" r="9" /><path d="M15 9.5c-.5-1-1.6-1.5-3-1.5-1.7 0-3 .8-3 2s1.3 1.7 3 2 3 .8 3 2-1.3 2-3 2c-1.4 0-2.5-.5-3-1.5M12 6v2M12 16v2" /></svg>
+)
+export const Expand =({ size, className }: P) => (
   <svg {...base(size)} className={className}><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M7 9h10M7 13h10M7 17h6" /></svg>
 )

@@ -1,5 +1,5 @@
-// Layout: run list on the left, the graph in the middle, the activity feed on
-// the right. Details slide in over the graph; the playback bar and timeline are
+// Layout: run list on the left, the graph in the middle, the activity feed or
+// the cost tab on the right. Details slide in over the graph; the playback bar and timeline are
 // a dock at the bottom, hidden until asked for (a small floating control remains).
 
 import { ReactFlowProvider, useReactFlow } from '@xyflow/react'
@@ -7,10 +7,11 @@ import { useEffect } from 'react'
 import { api, STATIC_DEMO, subscribe } from './api'
 import { DemoHint, useDemoAutoplay } from './components/DemoHint'
 import { ActivityFeed } from './components/ActivityFeed'
+import { CostPanel } from './components/cost/CostPanel'
 import { DetailsPanel } from './components/details/DetailsPanel'
 import { EmptyState } from './components/EmptyState'
 import { GraphView } from './components/graph/GraphView'
-import { Activity, Download, Expand, Fit, Logo, Moon, Sidebar, Sun } from './components/icons'
+import { Activity, Coin, Download, Expand, Fit, Logo, Moon, Sidebar, Sun } from './components/icons'
 import { MiniPlayback, PlaybackBar, stepEvent, togglePlay, usePlaybackClock } from './components/PlaybackBar'
 import { RunList } from './components/RunList'
 import { StatusMark } from './components/StatusMark'
@@ -25,7 +26,7 @@ export default function App() {
   const hasRuns = useStore((s) => s.runs.size > 0)
   const sidebarOpen = useStore((s) => s.sidebarOpen)
   const dockOpen = useStore((s) => s.dockOpen)
-  const activityOpen = useStore((s) => s.activityOpen)
+  const panel = useStore((s) => s.panel)
 
   return (
     <ReactFlowProvider>
@@ -57,10 +58,10 @@ export default function App() {
             )}
           </main>
           <aside
-            className={`shrink-0 overflow-hidden border-l border-border bg-canvas transition-[width] duration-250 ease-out ${activityOpen && hasRuns ? 'w-[380px]' : 'w-0'}`}
+            className={`shrink-0 overflow-hidden border-l border-border bg-canvas transition-[width] duration-250 ease-out ${panel && hasRuns ? 'w-[380px]' : 'w-0'}`}
           >
             <div className="h-full w-[380px]">
-              <ActivityFeed />
+              {panel === 'cost' ? <CostPanel /> : <ActivityFeed />}
             </div>
           </aside>
         </div>
@@ -73,9 +74,9 @@ function TopBar() {
   const loaded = useSelectedRun()
   const connected = useStore((s) => s.connected)
   const theme = useStore((s) => s.theme)
-  const activityOpen = useStore((s) => s.activityOpen)
+  const panel = useStore((s) => s.panel)
   const expandAll = useStore((s) => s.expandAll)
-  const { toggleSidebar, toggleTheme, toggleActivity, toggleExpandAll } = useStore.getState()
+  const { toggleSidebar, toggleTheme, togglePanel, toggleExpandAll } = useStore.getState()
   const { fitView } = useReactFlow()
   const run = loaded?.run
   const button = 'flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[12px] text-muted hover:bg-overlay hover:text-text'
@@ -130,11 +131,18 @@ function TopBar() {
               </a>
             )}
             <button
-              className={`${button} ${activityOpen ? 'bg-overlay text-text' : ''}`}
-              onClick={toggleActivity}
+              className={`${button} ${panel === 'activity' ? 'bg-overlay text-text' : ''}`}
+              onClick={() => togglePanel('activity')}
               title="Show what the agents think, say and do (a)"
             >
               <Activity size={14} /> Activity
+            </button>
+            <button
+              className={`${button} ${panel === 'cost' ? 'bg-overlay text-text' : ''}`}
+              onClick={() => togglePanel('cost')}
+              title="Show where the money goes (c)"
+            >
+              <Coin size={14} /> Cost
             </button>
           </>
         )}
@@ -160,7 +168,8 @@ function KeyboardShortcuts() {
       else if (e.key === 'ArrowLeft') stepEvent(-1)
       else if (e.key === 'f') fitView({ duration: 300, padding: 0.12 })
       else if (e.key === 't') store.toggleDock()
-      else if (e.key === 'a') store.toggleActivity()
+      else if (e.key === 'a') store.togglePanel('activity')
+      else if (e.key === 'c') store.togglePanel('cost')
       else if (e.key === 'e') store.toggleExpandAll()
       else if (e.key === 'Escape') store.setSelectedKey(null)
     }

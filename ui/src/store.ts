@@ -40,7 +40,10 @@ interface State {
   sidebarOpen: boolean
   theme: Theme
   dockOpen: boolean // playback + timeline at the bottom
-  activityOpen: boolean // the activity feed on the right
+  panel: SidePanel | null // the right-hand panel: activity feed or cost
+  costUnit: 'dollars' | 'tokens'
+  costHighlight: string[] // graph cards to highlight while a cost segment is hovered
+  focusRequest: { key: string; at: number } | null // a card the graph should centre
 
   setRuns: (runs: RunInfo[]) => void
   applyUpdate: (event: RunUpdateEvent) => void
@@ -55,8 +58,13 @@ interface State {
   toggleSidebar: () => void
   toggleTheme: () => void
   toggleDock: () => void
-  toggleActivity: () => void
+  togglePanel: (panel: SidePanel) => void
+  setCostUnit: (unit: 'dollars' | 'tokens') => void
+  setCostHighlight: (keys: string[]) => void
+  focusCard: (key: string) => void
 }
+
+export type SidePanel = 'activity' | 'cost'
 
 export type Theme = 'light' | 'dark'
 
@@ -77,6 +85,11 @@ function savePref(key: string, value: string | boolean) {
   } catch {
     // not persisted; the preference still applies for this visit
   }
+}
+
+function loadPanel(): SidePanel | null {
+  const saved = loadPref<string>('panel', 'activity')
+  return saved === 'activity' || saved === 'cost' ? saved : null
 }
 
 export function applyTheme(theme: Theme) {
@@ -103,7 +116,10 @@ export const useStore = create<State>((set, get) => ({
   sidebarOpen: true,
   theme: loadPref<Theme>('theme', 'light'),
   dockOpen: loadPref('dockOpen', false),
-  activityOpen: loadPref('activityOpen', true),
+  panel: loadPanel(),
+  costUnit: loadPref<'dollars' | 'tokens'>('costUnit', 'dollars'),
+  costHighlight: [],
+  focusRequest: null,
 
   setRuns: (list) => {
     const runs = new Map(list.map((r) => [r.id, r]))
@@ -180,10 +196,18 @@ export const useStore = create<State>((set, get) => ({
     savePref('dockOpen', !get().dockOpen)
     set({ dockOpen: !get().dockOpen })
   },
-  toggleActivity: () => {
-    savePref('activityOpen', !get().activityOpen)
-    set({ activityOpen: !get().activityOpen })
+  // Open a panel, or close it when it is the one already open.
+  togglePanel: (panel) => {
+    const next = get().panel === panel ? null : panel
+    savePref('panel', next ?? 'none')
+    set({ panel: next })
   },
+  setCostUnit: (costUnit) => {
+    savePref('costUnit', costUnit)
+    set({ costUnit })
+  },
+  setCostHighlight: (costHighlight) => set({ costHighlight }),
+  focusCard: (key) => set({ focusRequest: { key, at: Date.now() } }),
 }))
 
 export function isExpanded(state: { expanded: Set<string>; expandAll: boolean }, key: string) {

@@ -15,6 +15,7 @@ export type StepNodeData = {
   node: GraphNode
   hue: string
   highlighted: boolean
+  costLit?: boolean // a hovered cost segment is largest here
   selected: boolean
   onToggle?: () => void
   expandable: boolean
@@ -27,7 +28,7 @@ export type StepNodeData = {
 export type StepFlowNode = Node<StepNodeData, 'step'>
 
 function StepNodeView({ data }: NodeProps<StepFlowNode>) {
-  const { node, hue, highlighted, selected, expanded } = data
+  const { node, hue, highlighted, selected, expanded, costLit } = data
   const running = node.status === 'running'
   const error = node.status === 'error'
   return (
@@ -35,6 +36,7 @@ function StepNodeView({ data }: NodeProps<StepFlowNode>) {
       className={[
         'step-card group relative flex h-full flex-col rounded-xl border bg-surface/95 px-3 py-2.5 backdrop-blur',
         running ? 'is-running' : '',
+        costLit ? 'is-cost-lit' : '',
         error ? 'border-state-error/70' : 'border-border',
         selected ? 'ring-2 ring-ring/70' : highlighted ? 'ring-2 ring-ring/30' : '',
         node.status === 'idle' ? 'opacity-60' : '',

@@ -6,7 +6,7 @@
 
 import { useState } from 'react'
 import { formatDuration, formatTokens } from '../theme'
-import type { MessagePart, Step } from '../types'
+import { totalTokens, type MessagePart, type Step } from '../types'
 import { JsonBlock } from './details/JsonView'
 import { ArrowRight, Sparkle, Thought, Wrench } from './icons'
 import { Markdown } from './Markdown'
@@ -34,7 +34,7 @@ export function CallView({ step, time }: { step: Step; time: number }) {
 function ModelEntry({ step, running }: { step: Step; running: boolean }) {
   const model = step.model
   const parts = (model?.output ?? []).flatMap((m) => m.parts)
-  const tokens = (model?.input_tokens ?? 0) + (model?.output_tokens ?? 0)
+  const tokens = totalTokens(model)
   if (running) {
     return (
       <div className="flex items-center gap-1.5 text-[12px] text-muted">

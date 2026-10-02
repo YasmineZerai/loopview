@@ -23,7 +23,7 @@ export function DetailsPanel() {
   const first = executions[0]
   return (
     <aside
-      className={`absolute inset-y-0 right-0 z-20 flex w-[460px] max-w-[92vw] flex-col border-l border-border bg-surface/95 shadow-2xl backdrop-blur-md transition-transform duration-250 ease-out ${open ? 'translate-x-0' : 'translate-x-full'}`}
+      className={`absolute inset-y-0 right-0 z-20 flex w-[var(--details-width)] max-w-[92vw] flex-col border-l border-border bg-surface/95 shadow-2xl backdrop-blur-md transition-transform duration-250 ease-out ${open ? 'translate-x-0' : 'translate-x-full'}`}
     >
       {first && loaded && (
         <>

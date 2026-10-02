@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { buildGraph, LIVE } from '../graph/buildGraph'
 import { useSelectedRun, useStore } from '../store'
 import { formatDuration, hueMap, NEUTRAL_HUE } from '../theme'
-import type { Step } from '../types'
+import { totalTokens, type Step } from '../types'
 
 const LABEL_WIDTH = 168
 const ROW_HEIGHT = 18
@@ -213,7 +213,7 @@ function buildLanes(run: Parameters<typeof buildGraph>[0]): Lane[] {
 
 function barLabel(step: Step): string {
   if (step.kind === 'model_call') {
-    const tokens = (step.model?.input_tokens ?? 0) + (step.model?.output_tokens ?? 0)
+    const tokens = totalTokens(step.model)
     return tokens ? `llm · ${tokens >= 1000 ? `${(tokens / 1000).toFixed(1)}k` : tokens} tok` : 'llm'
   }
   return step.name

@@ -26,13 +26,58 @@ export interface Message {
   parts: MessagePart[]
 }
 
+/** Token counts as the provider reported them; null means "not reported". */
+export interface Usage {
+  input_tokens?: number | null // includes cache reads and writes
+  output_tokens?: number | null // includes thinking
+  cache_read_tokens?: number | null
+  cache_write_tokens?: number | null
+  reasoning_tokens?: number | null
+}
+
+export type CostSegmentName =
+  | 'tool_prompt'
+  | 'tool_definitions'
+  | 'system'
+  | 'history'
+  | 'tool_results'
+  | 'new_input'
+  | 'cache_read'
+  | 'cache_write'
+  | 'thinking'
+  | 'reply'
+  | 'unattributed'
+
+export interface CostSegment {
+  name: CostSegmentName
+  side: 'input' | 'output'
+  tokens: number
+  dollars: number | null // null when the model has no price
+}
+
+/** Where a model call's tokens came from: estimated split, reported totals. */
+export interface CallCost {
+  status: 'estimated' | 'content_not_recorded' | 'no_usage'
+  segments: CostSegment[]
+  tokens: number | null
+  dollars: number | null
+  price_key: string | null
+  price_source: string | null
+}
+
 export interface ModelCall {
   provider?: string | null
   model?: string | null
   input: Message[]
   output: Message[]
-  input_tokens?: number | null
-  output_tokens?: number | null
+  tool_definitions?: unknown[]
+  usage?: Usage | null
+  cost?: CallCost | null
+}
+
+/** Input plus output tokens of a model call, 0 when not reported. */
+export function totalTokens(call: ModelCall | null | undefined): number {
+  return (call?.usage?.input_tokens ?? 0) + (call?.usage?.output_tokens ?? 0)
 }
 
 export interface ToolCall {

@@ -11,7 +11,7 @@
 // - `time` lets replay show the run as it was at that moment: only steps that
 //   had started exist, and a step is running if it had not ended yet.
 
-import type { NormalizedRun, Step, StepStatus, TransitionKind } from '../types'
+import { totalTokens, type NormalizedRun, type Step, type StepStatus, type TransitionKind } from '../types'
 
 export const LIVE = Number.POSITIVE_INFINITY
 
@@ -138,7 +138,7 @@ export function buildGraph(run: NormalizedRun, time: number = LIVE): Graph {
     const status = statusAt(step, time)
     if (step.kind === 'model_call') {
       node.modelCalls += 1
-      node.tokens += (step.model?.input_tokens ?? 0) + (step.model?.output_tokens ?? 0)
+      node.tokens += totalTokens(step.model)
       continue
     }
     let tools = toolMaps.get(node.key)

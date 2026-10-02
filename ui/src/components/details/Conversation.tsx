@@ -26,8 +26,10 @@ export function Conversation({ call }: { call: ModelCall }) {
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] text-muted">
         <span className="text-text">{call.model ?? 'model'}</span>
         {call.provider && <span>{call.provider}</span>}
-        {call.input_tokens != null && <span>{formatTokens(call.input_tokens)} in</span>}
-        {call.output_tokens != null && <span>{formatTokens(call.output_tokens)} out</span>}
+        {call.usage?.input_tokens != null && <span>{formatTokens(call.usage.input_tokens)} in</span>}
+        {call.usage?.output_tokens != null && <span>{formatTokens(call.usage.output_tokens)} out</span>}
+        {!!call.usage?.cache_read_tokens && <span>{formatTokens(call.usage.cache_read_tokens)} cached</span>}
+        {!!call.usage?.reasoning_tokens && <span>{formatTokens(call.usage.reasoning_tokens)} thinking</span>}
       </div>
       {system.map((m, i) => (
         <MessageView key={`s${i}`} message={m} clamp />
