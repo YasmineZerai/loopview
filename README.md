@@ -242,7 +242,7 @@ Standard OpenTelemetry exporters send a span only when it **ends**, but a live v
 
 Runs can be exported as JSONL and imported by someone else, so you can share a trace. `loopview --help` lists the server options (`--port`, `--persist FILE`, `--max-runs`, `--prices FILE`).
 
-Prices live in [`pricing.json`](server/src/loopview/cost/pricing.json), with a source link and the date each was checked. To add a model or correct a price, pass your own file with `--prices FILE`; its entries override the built-in ones. Models with no price are shown in tokens only.
+Prices for Anthropic and OpenAI models live in [`pricing.json`](server/src/loopview/cost/pricing.json), with a source link and the date each was checked. To add a model or correct a price, pass your own file with `--prices FILE`; its entries override the built-in ones. Models with no price are shown in tokens only.
 
 ## Limitations
 
@@ -252,7 +252,7 @@ Prices live in [`pricing.json`](server/src/loopview/cost/pricing.json), with a s
 - Without `loopview-sdk`, a running step with no finished children appears only when it ends.
 - Message content and thinking appear only if your instrumentation records them. For LangChain, thinking is read from the raw model output, because OpenInference's message attributes drop it.
 - Runs are kept in memory (200 by default); use `--persist` to keep them across restarts.
-- The cost split is an estimate: tokens are approximated from characters (about 4 per token for prose, 3 for JSON), then scaled to the reported totals. The totals themselves are exact. Prices cover Anthropic models for now, and use the 5 minute cache write rate.
+- The cost split is an estimate: tokens are approximated from characters (about 4 per token for prose, 3 for JSON), then scaled to the reported totals. The totals themselves are exact. Prices cover Anthropic and OpenAI at list price (standard tier): Anthropic cache writes use the 5 minute rate, and OpenAI's higher rate for prompts above 272K tokens isn't applied.
 - Calls without recorded content show their total cost but no split. Calls whose framework reports no token counts are listed but not counted.
 
 ## Development
@@ -275,7 +275,7 @@ For UI work with hot reload, keep the server running and run `npm run dev` in `u
 - A TypeScript `loopview-sdk` for Node agents.
 - Comparing two runs of the same agent side by side.
 - Cost per tool: how much each tool's definition and results cost across a run.
-- Prices for OpenAI, Google and other providers.
+- Prices for Google and other providers, and a recorded OpenAI run to test against.
 
 ## License
 

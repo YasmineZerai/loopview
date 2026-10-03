@@ -182,6 +182,7 @@ One short entry per significant decision: what was chosen, what was rejected, an
 ## D42. Prices in an editable JSON file
 - **Chosen:** `cost/pricing.json`, one entry per model family with input, cache write (5 minutes), cache read and output prices per million tokens, the tool prompt size, a source URL and the date checked. A model ID matches the longest family name it starts with, so dated IDs (`claude-haiku-4-5-20251001`) need no entry of their own. `--prices FILE` merges a user's file over it.
 - **Why:** prices change; a JSON file can be checked and edited by anyone without touching code, and the source and date make every number auditable. Unknown models get no price rather than a guess: they show tokens only.
+- **OpenAI** (added after the first release): standard-tier prices from OpenAI's pricing page. OpenAI caches automatically and doesn't charge to write the cache, so `cache_write` equals the input price; models without a cached price get `cache_read` equal to input, so no discount is invented. The page lists some legacy models only by dated ID; their aliases (`gpt-4-turbo`, `gpt-3.5-turbo`) are keyed by name. No tool prompt size: OpenAI doesn't document one.
 
 ## D43. Cost drawn as a tree whose branches are as thick as the money
 - **Problem:** the first version was a side panel of bars and tables, the second an icicle of grey blocks under the graph. The user found both read like a report, not like the rest of loopview, which is graphic.

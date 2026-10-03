@@ -221,10 +221,30 @@ def test_dated_model_ids_match_their_family() -> None:
     assert pricing.for_model("gpt-something") is None and pricing.for_model(None) is None
 
 
+def test_openai_model_ids_match_the_right_entry() -> None:
+    pricing = default_pricing()
+    match = lambda model: pricing.for_model(model)[0]  # type: ignore[index]  # noqa: E731
+    assert match("gpt-5.4-mini-2026-03-17") == "gpt-5.4-mini"  # dated ID, its family
+    assert match("gpt-5.1") == "gpt-5.1"  # not gpt-5
+    assert match("gpt-5-mini") == "gpt-5-mini"
+    assert match("gpt-4o-2024-08-06") == "gpt-4o"
+    assert match("gpt-4o-2024-05-13") == "gpt-4o-2024-05-13"  # the older, pricier snapshot
+    assert match("o3-mini") == "o3-mini" and match("o3-2025-04-16") == "o3"
+    assert match("gpt-3.5-turbo-1106") == "gpt-3.5-turbo-1106"
+
+
+def test_openai_caching_is_priced_as_openai_bills_it() -> None:
+    gpt = default_pricing().models["gpt-5.4"]
+    assert gpt.cache_write == gpt.input  # writing the cache costs nothing extra
+    assert gpt.cache_read == 0.25 and gpt.tool_prompt_tokens is None
+    pro = default_pricing().models["gpt-5.4-pro"]
+    assert pro.cache_read == pro.input  # no cached price: no invented discount
+
+
 def test_every_bundled_price_has_a_source_and_date() -> None:
     for key, price in default_pricing().models.items():
         assert price.source.startswith("https://") and price.checked, key
-        assert price.cache_read < price.input < price.output, key
+        assert price.cache_read <= price.input < price.output, key  # equal: no cache discount
 
 
 def test_user_prices_replace_bundled_ones(tmp_path: Path) -> None:
