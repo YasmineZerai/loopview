@@ -219,6 +219,13 @@ def test_dated_model_ids_match_their_family() -> None:
     assert pricing.for_model("claude-sonnet-5-5")[0] == "claude-sonnet-5-5"  # type: ignore[index]
     assert pricing.for_model("claude-sonnet-5")[0] == "claude-sonnet-5"  # type: ignore[index]
     assert pricing.for_model("gpt-something") is None and pricing.for_model(None) is None
+    # Routers and clouds prefix the provider's ID; the price is the provider's.
+    for routed in (
+        "anthropic/claude-haiku-4-5-20251001",  # LiteLLM, OpenAI Agents SDK
+        "us.anthropic.claude-haiku-4-5-20251001-v1:0",  # Bedrock
+        "claude-haiku-4-5@20251001",  # Vertex
+    ):
+        assert pricing.for_model(routed)[0] == "claude-haiku-4-5", routed  # type: ignore[index]
 
 
 def test_openai_model_ids_match_the_right_entry() -> None:

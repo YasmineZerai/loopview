@@ -6,6 +6,7 @@ price carries its source and the date it was checked.
 """
 
 import json
+import re
 from functools import cache
 from pathlib import Path
 
@@ -35,12 +36,24 @@ class Pricing(BaseModel):
         claude-sonnet-5-5 doesn't fall back to claude-sonnet-5."""
         if not model:
             return None
-        model = model.lower()
-        matches = [k for k in self.models if model == k or model.startswith(k + "-")]
-        if not matches:
-            return None
-        key = max(matches, key=len)
-        return key, self.models[key]
+        for name in _model_names(model.lower()):
+            matches = [k for k in self.models if name == k or name.startswith(k + "-")]
+            if matches:
+                key = max(matches, key=len)
+                return key, self.models[key]
+        return None
+
+
+# Routers and clouds prefix the provider's model ID: LiteLLM "anthropic/...",
+# Bedrock "us.anthropic.claude-...-v1:0", Vertex "claude-...@20251001".
+_PROVIDER_PREFIX = re.compile(r"^(?:[a-z]{2,4}\.)?(?:anthropic|openai|meta|mistral)\.")
+
+
+def _model_names(model: str) -> list[str]:
+    """The ID as given, then without a router's or cloud's prefix."""
+    bare = model.rsplit("/", 1)[-1].replace("@", "-")
+    bare = _PROVIDER_PREFIX.sub("", bare)
+    return [model] if bare == model else [model, bare]
 
 
 def load_pricing(path: Path) -> Pricing:
