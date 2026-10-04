@@ -141,7 +141,8 @@ _CACHE_READ_KEYS = (
 )
 _CACHE_WRITE_KEYS = (
     "gen_ai.usage.cache_write.input_tokens",
-    "gen_ai.usage.details.cache_creation_input_tokens",
+    "gen_ai.usage.details.cache_creation_input_tokens",  # Pydantic AI
+    "gen_ai.usage.cache_creation.input_tokens",  # OpenLLMetry
 )
 
 
@@ -209,6 +210,8 @@ def _parts(value: Any) -> list[MessagePart]:
                     type="tool_result",
                     id=p.get("id"),
                     result=maybe_json(p.get("response", p.get("result"))),
+                    # Not in the spec; read when an instrumentation records it.
+                    is_error=p.get("is_error") if isinstance(p.get("is_error"), bool) else None,
                 )
             )
         else:

@@ -32,6 +32,9 @@ class MessagePart(BaseModel):
     name: str | None = None  # tool name, for tool_call
     arguments: Any = None  # tool_call
     result: Any = None  # tool_result
+    # tool_result: the result was flagged as an error by the caller (Anthropic's
+    # is_error). None when the trace doesn't say, which is not the same as False.
+    is_error: bool | None = None
 
 
 class Message(BaseModel):

@@ -79,8 +79,15 @@ class OpenInferenceAdapter:
             # the same name and sits directly under it: collapse the two.
             return Classification("node", span.name, "node", collapse_into_parent=True, **io)
         if kind == "AGENT":
-            return Classification("agent", str(attrs.get("agent.name") or span.name), "agent", **io)
-        return Classification("node", span.name, "chain", **io)
+            # graph.node.id is the agent's own name where the span name is a method
+            # (CrewAI: "Weather assistant._execute_core").
+            name = attrs.get("agent.name") or attrs.get("graph.node.id") or _readable(span.name)
+            return Classification("agent", str(name), "agent", **io)
+        # A chain directly inside a span of the same name is the same step recorded
+        # twice (the OpenAI Agents SDK wraps its "Agent workflow" AGENT in a CHAIN).
+        return Classification(
+            "node", _readable(span.name), "chain", collapse_into_parent=True, **io
+        )
 
     def infer_parent(self, span: RawSpan) -> ParentHint | None:
         metadata = _metadata(span.attributes)
@@ -94,6 +101,16 @@ class OpenInferenceAdapter:
         if len(namespace) > 1:
             return ParentHint(namespace[-2].split(":")[0], "agent", "graph")
         return None
+
+
+_UUID_IN_NAME = re.compile(
+    r"[_-]?[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+)
+
+
+def _readable(name: str) -> str:
+    """A span name without the run's UUID in it (CrewAI: "Crew_<uuid>.kickoff")."""
+    return _UUID_IN_NAME.sub("", name) or name
 
 
 def _metadata(attrs: dict[str, Any]) -> dict[str, Any]:
@@ -119,10 +136,12 @@ def _model_call(attrs: dict[str, Any]) -> ModelCall:
         if not output:
             output = [Message(role="assistant", parts=[])]
         output[0].parts[:0] = [MessagePart(type="reasoning", text=r) for r in reasoning]
+    inputs = _messages(attrs, "llm.input_messages.")
+    _add_raw_tool_results(inputs, attrs.get("input.value"))
     return ModelCall(
         provider=attrs.get("llm.provider") or attrs.get("llm.system"),
         model=attrs.get("llm.model_name"),
-        input=_messages(attrs, "llm.input_messages."),
+        input=inputs,
         output=output,
         tool_definitions=_tool_definitions(attrs),
         usage=_usage(attrs),
@@ -265,7 +284,9 @@ def _messages(attrs: dict[str, Any], prefix: str) -> list[Message]:
         parts: list[MessagePart] = []
         if m.get("message.content"):
             text = str(m["message.content"])
-            if m.get("message.role") == "tool":
+            # A tool result: role "tool" (OpenAI), or any message answering a tool
+            # call (Anthropic sends results in a "user" message).
+            if m.get("message.role") == "tool" or m.get("message.tool_call_id"):
                 parts.append(
                     MessagePart(
                         type="tool_result",
@@ -276,8 +297,11 @@ def _messages(attrs: dict[str, Any], prefix: str) -> list[Message]:
             else:
                 parts.append(MessagePart(type="text", text=text))
         for c in _group_by_index(m, "message.contents."):
-            if c.get("message_content.type", "text") == "text":
+            kind = c.get("message_content.type", "text")
+            if kind == "text":
                 parts.append(MessagePart(type="text", text=str(c.get("message_content.text", ""))))
+            elif kind == "tool_use":
+                continue  # the same call is also under message.tool_calls
             else:
                 parts.append(MessagePart(type="other", name=c.get("message_content.type")))
         for tc in _group_by_index(m, "message.tool_calls."):
@@ -291,3 +315,53 @@ def _messages(attrs: dict[str, Any], prefix: str) -> list[Message]:
             )
         messages.append(Message(role=str(m.get("message.role", "unknown")), parts=parts))
     return messages
+
+
+def _add_raw_tool_results(inputs: list[Message], raw: Any) -> None:
+    """Tool results from the raw request (input.value), which the flattened messages
+    can lose: OpenInference's Anthropic instrumentation keeps only one tool result per
+    message, and drops Anthropic's is_error flag. Results already present get the
+    flag; missing ones are added to the message holding the other results."""
+    found: dict[str, tuple[Any, bool | None]] = {}
+
+    def walk(node: Any) -> None:
+        if isinstance(node, dict):
+            if node.get("type") == "tool_result" and node.get("tool_use_id"):
+                flag = node.get("is_error")
+                found[str(node["tool_use_id"])] = (
+                    _tool_result_content(node.get("content")),
+                    flag if isinstance(flag, bool) else None,
+                )
+                return
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+
+    walk(maybe_json(raw))
+    if not found:
+        return
+    present = {p.id: p for m in inputs for p in m.parts if p.type == "tool_result" and p.id}
+    for call_id, (content, flag) in found.items():
+        if call_id in present:
+            present[call_id].is_error = flag
+            continue
+        # The message answering the previous calls, or a new one at the end.
+        holder = next(
+            (m for m in reversed(inputs) if any(p.type == "tool_result" for p in m.parts)), None
+        )
+        if holder is None:
+            holder = Message(role="user", parts=[])
+            inputs.append(holder)
+        holder.parts.append(
+            MessagePart(type="tool_result", id=call_id, result=content, is_error=flag)
+        )
+
+
+def _tool_result_content(content: Any) -> Any:
+    """Anthropic's tool_result content: a string, or text blocks."""
+    if isinstance(content, list):
+        texts = [c.get("text") for c in content if isinstance(c, dict) and c.get("text")]
+        content = "\n".join(texts) if texts else content
+    return maybe_json(content)
