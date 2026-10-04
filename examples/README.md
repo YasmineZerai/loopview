@@ -62,6 +62,14 @@ uv run --project compat python capture.py compat.anthropic_sdk_openinference
 COMPAT_WRAP=1 uv run --project compat python capture.py compat.anthropic_sdk_openinference anthropic_sdk_openinference_wrapped
 ```
 
+CrewAI has a project of its own (`compat_crewai/`), and doesn't depend on loopview:
+record it by running a loopview with `--persist` and pointing the agent at it.
+
+```sh
+cd ../server && uv run loopview --port 4463 --no-browser --persist ../fixtures/crewai.otlp.jsonl
+LOOPVIEW_URL=http://127.0.0.1:4463 uv run --project compat_crewai python -m compat_crewai.weather_crew
+```
+
 ## Recording fixtures
 
 ```sh

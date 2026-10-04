@@ -1,0 +1,24 @@
+[project]
+name = "loopview-compat-crewai"
+version = "0.1.0"
+description = "CrewAI, on its own: it pins an OpenTelemetry older than the other compat agents."
+requires-python = ">=3.12"
+dependencies = [
+    "crewai[anthropic]>=1.15",
+    "openinference-instrumentation-crewai>=1.1",
+    # CrewAI calls Claude through the Anthropic SDK; its own instrumentation
+    # records crews, agents and tasks, not model calls.
+    "openinference-instrumentation-anthropic>=3.0",
+    # CrewAI pins anthropic 0.x, which OpenInference's needs 1.8+ for; connect() falls
+    # back to OpenLLMetry's, which supports it.
+    "opentelemetry-instrumentation-anthropic>=0.62",
+    "opentelemetry-exporter-otlp-proto-http",
+    "python-dotenv>=1.2.3",
+    "loopview-sdk",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+loopview-sdk = { path = "../../sdk", editable = true }

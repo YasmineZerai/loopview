@@ -20,6 +20,7 @@ through the receiver reproduces the run, including the batching timing.
 | `anthropic_sdk_openinference.otlp.jsonl`, `..._wrapped` | `examples/compat/anthropic_sdk_openinference.py` | anthropic 1.11.0, openinference-instrumentation-anthropic 3.0.1 |
 | `anthropic_sdk_openllmetry.otlp.jsonl`, `..._wrapped` | `examples/compat/anthropic_sdk_openllmetry.py` | opentelemetry-instrumentation-anthropic 0.62.4 (OpenLLMetry) |
 | `openai_agents_sdk.otlp.jsonl` | `examples/compat/openai_agents_sdk.py` (on Claude via LiteLLM) | openai-agents 0.23.1, openinference-instrumentation-openai-agents 2.5.2 |
+| `crewai.otlp.jsonl` | `examples/compat_crewai/weather_crew.py`, with `loopview_sdk.connect()` | crewai 1.15.23, openinference-instrumentation-crewai 1.1.20, opentelemetry-instrumentation-anthropic 0.62.4 |
 | `failing_tools_pydantic.otlp.jsonl` | `examples/failing_tools_pydantic.py` | pydantic-ai-slim 2.52.0, fastmcp-slim 4.0.10 (in-process MCP server) |
 
 All recorded with `claude-haiku-4-5-20251001`. `react_anthropic` and `flagship` use
