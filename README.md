@@ -224,7 +224,7 @@ flowchart LR
 
 1. **Receiver.** Decodes OTLP export requests (protobuf or JSON) into raw spans.
 2. **Store.** Groups spans into runs by trace id, and runs into sessions by conversation id. Keeps the 200 most recent runs in memory; `--persist FILE` also saves them to a file.
-3. **Normalizer.** Every framework describes the same things differently. One adapter per convention (`gen_ai`, `openinference`, `generic`) turns spans into one small schema: agents, steps, model calls (with messages and thinking) and tool calls (with arguments and results).
+3. **Normalizer.** Every framework describes the same things differently. One adapter per convention (`gen_ai`, `openinference`, `generic`) turns spans into one small schema: agents, steps, model calls (with messages and thinking) and tool calls (with arguments and results). When a framework records an agent's model and tool calls directly under it (the GenAI conventions), the normalizer adds `model` and `tools` steps per turn, so the loop is drawn the same way as in LangGraph.
 4. **Transitions.** No framework says "control went from A to B", so loopview derives it with one rule: within the same agent or graph, A leads to B when A ended before B started and no other step sits between them. That one rule gives sequences, parallel fan out and fan in, loops and handoffs.
 5. **Live hub.** Every 100 ms, pushes the steps that changed to the browser over Server-Sent Events.
 6. **UI.** React and React Flow, laid out with ELK in a Web Worker. The graph is computed for a moment in time, so live view and replay are the same code.
