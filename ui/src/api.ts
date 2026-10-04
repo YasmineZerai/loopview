@@ -4,7 +4,7 @@
 // then reads recorded runs from static files (demo/index.json and one file per
 // run, generated from the fixtures by the server's normalizer).
 
-import type { NormalizedRun, RunInfo, RunUpdateEvent } from './types'
+import type { NormalizedRun, RunInfo, RunUpdateEvent, ToolsReport } from './types'
 
 /** True in the hosted demo: recorded runs, no server, nothing live. */
 export const STATIC_DEMO = import.meta.env.MODE === 'pages'
@@ -22,31 +22,43 @@ const serverApi = {
   importFile: (file: File) =>
     json<{ trace_ids: string[] }>(fetch('/api/import', { method: 'POST', body: file })),
   exportUrl: (id: string) => `/api/runs/${id}/export`,
+  /** The Tools tab's report over all runs, or one session's. */
+  tools: (session?: string) =>
+    json<ToolsReport>(fetch(session ? `/api/tools?session=${encodeURIComponent(session)}` : '/api/tools')),
 }
 
 // --- the hosted demo -----------------------------------------------------------
 
-let recorded: Promise<NormalizedRun[]> | null = null
+// index.json lists every recorded run with its RunInfo, so the run list shows
+// without downloading the runs; each run's file is fetched when it is opened.
+interface IndexEntry {
+  file: string
+  run: RunInfo
+}
 
-function loadRecorded(): Promise<NormalizedRun[]> {
-  recorded ??= json<{ file: string }[]>(fetch('./demo/index.json')).then((index) =>
-    Promise.all(index.map((entry) => json<NormalizedRun>(fetch(`./demo/${entry.file}`)))),
-  )
-  return recorded
+let index: Promise<IndexEntry[]> | null = null
+const recorded = new Map<string, Promise<NormalizedRun>>()
+
+function loadIndex(): Promise<IndexEntry[]> {
+  index ??= json<IndexEntry[]>(fetch('./demo/index.json'))
+  return index
 }
 
 const staticApi: typeof serverApi = {
-  runs: async () => (await loadRecorded()).map((r) => r.run),
+  runs: async () => (await loadIndex()).map((entry) => entry.run),
   run: async (id) => {
-    const found = (await loadRecorded()).find((r) => r.run.id === id)
-    if (!found) throw new Error(`no recorded run ${id}`)
-    return found
+    const entry = (await loadIndex()).find((e) => e.run.id === id)
+    if (!entry) throw new Error(`no recorded run ${id}`)
+    if (!recorded.has(id)) recorded.set(id, json<NormalizedRun>(fetch(`./demo/${entry.file}`)))
+    return recorded.get(id)!
   },
-  loadDemo: async () => ({ trace_ids: [(await loadRecorded())[0].run.id] }),
+  loadDemo: async () => ({ trace_ids: [(await loadIndex())[0].run.id] }),
   importFile: async () => {
     throw new Error('Import needs a running loopview server')
   },
   exportUrl: () => '#',
+  // Computed from the same recordings by the server's code at build time.
+  tools: () => json<ToolsReport>(fetch('./demo/tools.json')),
 }
 
 export const api = STATIC_DEMO ? staticApi : serverApi

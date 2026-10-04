@@ -1,5 +1,5 @@
 // Layout: run list on the left, the graph in the middle, the activity feed on
-// the right. The middle can switch to the cost tree (c). Details slide in over the graph; the playback bar and timeline are
+// the right. The middle can switch to the cost tree (c) or the Tools tab (o). Details slide in over the graph; the playback bar and timeline are
 // a dock at the bottom, hidden until asked for (a small floating control remains).
 
 import { ReactFlowProvider, useReactFlow } from '@xyflow/react'
@@ -8,10 +8,11 @@ import { api, STATIC_DEMO, subscribe } from './api'
 import { DemoHint, useDemoAutoplay } from './components/DemoHint'
 import { ActivityFeed } from './components/ActivityFeed'
 import { CostTree } from './components/cost/CostTree'
+import { ToolsView } from './components/tools/ToolsView'
 import { DetailsPanel } from './components/details/DetailsPanel'
 import { EmptyState } from './components/EmptyState'
 import { GraphView } from './components/graph/GraphView'
-import { Activity, Coin, Download, Expand, Fit, Logo, Moon, Sidebar, Sun } from './components/icons'
+import { Activity, Coin, Download, Expand, Fit, Logo, Moon, Sidebar, Sun, Wrench } from './components/icons'
 import { MiniPlayback, PlaybackBar, stepEvent, togglePlay, usePlaybackClock } from './components/PlaybackBar'
 import { RunList } from './components/RunList'
 import { StatusMark } from './components/StatusMark'
@@ -46,6 +47,7 @@ export default function App() {
             <div className="relative min-h-0 flex-1 overflow-hidden">
               {hasRuns ? <GraphView /> : <EmptyState />}
               {hasRuns && view === 'cost' && <CostTree />}
+              {hasRuns && view === 'tools' && <ToolsView />}
               {hasRuns && !dockOpen && <MiniPlayback />}
               {STATIC_DEMO && hasRuns && <DemoHint />}
               <DetailsPanel />
@@ -147,6 +149,13 @@ function TopBar() {
             >
               <Coin size={14} /> Cost
             </button>
+            <button
+              className={`${button} ${view === 'tools' ? 'bg-overlay text-text' : ''}`}
+              onClick={() => setView(view === 'tools' ? 'graph' : 'tools')}
+              title="Which tools fail, and what the agent does next, across runs (o)"
+            >
+              <Wrench size={14} /> Tools
+            </button>
           </>
         )}
         <button className={button} onClick={toggleTheme} title={theme === 'light' ? 'Dark mode' : 'Light mode'}>
@@ -173,6 +182,7 @@ function KeyboardShortcuts() {
       else if (e.key === 't') store.toggleDock()
       else if (e.key === 'a') store.togglePanel('activity')
       else if (e.key === 'c') store.setView(store.view === 'cost' ? 'graph' : 'cost')
+      else if (e.key === 'o') store.setView(store.view === 'tools' ? 'graph' : 'tools')
       else if (e.key === 'e') store.toggleExpandAll()
       else if (e.key === 'Escape') store.setSelectedKey(null)
     }

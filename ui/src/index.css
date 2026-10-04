@@ -132,6 +132,35 @@
   box-shadow: inset 0 0 0 1px var(--color-seg-unattributed);
 }
 
+/* The Tools tab: what an agent did after a tool error. Checked for contrast and
+   colour-blind separation in each theme (DECISIONS D45). "Gave up" is hatched grey:
+   it is the absence of a move, like "unattributed" in the cost view. */
+:root {
+  --color-move-blind_retry: #d97706;
+  --color-move-fixed: #2563eb;
+  --color-move-switched: #db2777;
+  --color-move-gave_up: #a1a1aa;
+}
+:root[data-theme='dark'] {
+  --color-move-blind_retry: #d97706;
+  --color-move-fixed: #3b82f6;
+  --color-move-switched: #ec4899;
+  --color-move-gave_up: #71717a;
+}
+.move-blind_retry {
+  background: var(--color-move-blind_retry);
+}
+.move-fixed {
+  background: var(--color-move-fixed);
+}
+.move-switched {
+  background: var(--color-move-switched);
+}
+.move-gave_up {
+  background: repeating-linear-gradient(135deg, var(--color-move-gave_up) 0 1.5px, transparent 1.5px 4px);
+  box-shadow: inset 0 0 0 1px var(--color-move-gave_up);
+}
+
 /* Text drawn in an agent's hue. */
 .hue-ink {
   color: color-mix(in srgb, var(--hue), var(--hue-ink-mix));

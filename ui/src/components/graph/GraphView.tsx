@@ -23,6 +23,8 @@ import { StepNode, type StepFlowNode } from './StepNode'
 const nodeTypes = { step: StepNode, group: GroupNode }
 const NO_CALLS: Step[] = []
 const edgeTypes = { flow: FlowEdge }
+// How long after a focus request new layouts still re-centre on the card.
+const FOCUS_WINDOW_MS = 2000
 
 export function GraphView() {
   const loaded = useSelectedRun()
@@ -134,18 +136,31 @@ export function GraphView() {
     }
   }, [fitBounds])
 
-  // Centre a card when another panel asks (a row in the Cost tab). React Flow
-  // knows each node's absolute place, including cards inside agent groups. The
+  // Centre a card when another panel asks (a row in the Cost or Tools tab). React
+  // Flow knows each node's absolute place, including cards inside agent groups. The
   // details panel opens over the right of the canvas, so aim left of centre.
+  // The request can come with a run that isn't laid out yet (the Tools tab opens
+  // another run), and opening the card changes the layout, so it is retried on
+  // each new layout for a short while, once React Flow has measured the card.
   useEffect(() => {
-    const node = focusRequest && getInternalNode(focusRequest.key)
-    if (!node) return
-    const zoom = Math.max(getZoom(), 0.9)
-    const panel = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--details-width')) || 0
-    const { x, y } = node.internals.positionAbsolute
-    const { width = 0, height = 0 } = node.measured
-    setCenter(x + width / 2 + panel / 2 / zoom, y + height / 2, { zoom, duration: 400 })
-  }, [focusRequest, getInternalNode, getZoom, setCenter])
+    if (!focusRequest || Date.now() - focusRequest.at > FOCUS_WINDOW_MS) return
+    let frame = 0
+    let tries = 0
+    const attempt = () => {
+      const node = getInternalNode(focusRequest.key)
+      if (!node?.measured.width) {
+        if (tries++ < 30) frame = requestAnimationFrame(attempt)
+        return
+      }
+      const zoom = Math.max(getZoom(), 0.9)
+      const panel = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--details-width')) || 0
+      const { x, y } = node.internals.positionAbsolute
+      const { width = 0, height = 0 } = node.measured
+      setCenter(x + width / 2 + panel / 2 / zoom, y + height / 2, { zoom, duration: 400 })
+    }
+    frame = requestAnimationFrame(attempt)
+    return () => cancelAnimationFrame(frame)
+  }, [focusRequest, layout, getInternalNode, getZoom, setCenter])
 
   const { nodes, edges } = useMemo(() => {
     if (!graph || !layout) return { nodes: [] as Node[], edges: [] as Edge[] }

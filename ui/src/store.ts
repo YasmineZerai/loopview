@@ -41,9 +41,11 @@ interface State {
   theme: Theme
   dockOpen: boolean // playback + timeline at the bottom
   panel: SidePanel | null // the right-hand panel
-  view: 'graph' | 'cost' // what the canvas shows
+  view: View // what the canvas shows
   costUnit: 'dollars' | 'tokens'
   focusRequest: { key: string; at: number } | null // a card the graph should centre
+  pendingStep: string | null // a step to show once its run has loaded (openStep)
+  highlightStep: string | null // the call openStep pointed at, outlined in the details panel
 
   setRuns: (runs: RunInfo[]) => void
   applyUpdate: (event: RunUpdateEvent) => void
@@ -59,10 +61,13 @@ interface State {
   toggleTheme: () => void
   toggleDock: () => void
   togglePanel: (panel: SidePanel) => void
-  setView: (view: 'graph' | 'cost') => void
+  setView: (view: View) => void
   setCostUnit: (unit: 'dollars' | 'tokens') => void
   focusCard: (key: string) => void
+  openStep: (runId: string, stepId: string) => void
 }
+
+export type View = 'graph' | 'cost' | 'tools'
 
 export type SidePanel = 'activity'
 
@@ -119,6 +124,8 @@ export const useStore = create<State>((set, get) => ({
   view: 'graph',
   costUnit: loadPref<'dollars' | 'tokens'>('costUnit', 'dollars'),
   focusRequest: null,
+  pendingStep: null,
+  highlightStep: null,
 
   setRuns: (list) => {
     const runs = new Map(list.map((r) => [r.id, r]))
@@ -163,11 +170,12 @@ export const useStore = create<State>((set, get) => ({
         if (existing) for (const [k, v] of existing.steps) steps.set(k, v)
         loaded.set(id, toLoaded(existing?.run ?? n.run, steps, existing?.transitions ?? n.transitions, 1))
         set({ loaded })
+        showPendingStep()
       })
     }
   },
 
-  setSelectedKey: (key) => set({ selectedKey: key }),
+  setSelectedKey: (key) => set({ selectedKey: key, highlightStep: null }),
   setHoverKey: (key) => set({ hoverKey: key }),
   toggleCollapsed: (key) => {
     const collapsed = new Set(get().collapsed)
@@ -207,7 +215,30 @@ export const useStore = create<State>((set, get) => ({
     set({ costUnit })
   },
   focusCard: (key) => set({ focusRequest: { key, at: Date.now() } }),
+  // Show one step in the graph, in any run (a link in the Tools tab): select the
+  // run, then, once it is loaded, select and open the card the step belongs to.
+  openStep: (runId, stepId) => {
+    if (get().selectedRunId !== runId) get().selectRun(runId, true)
+    set({ view: 'graph', pendingStep: stepId })
+    showPendingStep()
+  },
 }))
+
+function showPendingStep() {
+  const state = useStore.getState()
+  const run = state.selectedRunId ? state.loaded.get(state.selectedRunId) : undefined
+  if (!state.pendingStep || !run) return
+  const step = run.steps.get(state.pendingStep)
+  // A tool or model call is drawn inside the card of its node.
+  const scope = step?.scope_id ? run.steps.get(step.scope_id) : undefined
+  const key = scope?.key ?? step?.key
+  if (!key) {
+    useStore.setState({ pendingStep: null })
+    return
+  }
+  if (!isExpanded(state, key)) state.toggleExpanded(key) // so the call itself shows
+  useStore.setState({ pendingStep: null, highlightStep: step!.id, selectedKey: key, focusRequest: { key, at: Date.now() } })
+}
 
 export function isExpanded(state: { expanded: Set<string>; expandAll: boolean }, key: string) {
   return state.expandAll !== state.expanded.has(key)

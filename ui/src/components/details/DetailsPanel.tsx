@@ -1,6 +1,6 @@
 // The right slide-over: everything one graph node did, execution by execution.
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSelectedRun, useStore } from '../../store'
 import { formatDuration } from '../../theme'
 import type { Step } from '../../types'
@@ -13,6 +13,7 @@ export function DetailsPanel() {
   const loaded = useSelectedRun()
   const selectedKey = useStore((s) => s.selectedKey)
   const setSelectedKey = useStore((s) => s.setSelectedKey)
+  const highlight = useStore((s) => s.highlightStep)
 
   const executions = useMemo(() => {
     if (!loaded || !selectedKey) return []
@@ -41,7 +42,8 @@ export function DetailsPanel() {
           </header>
           <div className="flex-1 space-y-3 overflow-y-auto px-5 py-4">
             {executions.map((step, i) => (
-              <Execution key={step.id} step={step} index={i} total={executions.length} all={loaded.view.steps} />
+              // Keyed by the highlight too, so a new jump re-opens the right execution.
+              <Execution key={`${step.id}:${highlight}`} step={step} index={i} total={executions.length} all={loaded.view.steps} highlight={highlight} />
             ))}
           </div>
         </>
@@ -50,9 +52,11 @@ export function DetailsPanel() {
   )
 }
 
-function Execution({ step, index, total, all }: { step: Step; index: number; total: number; all: Step[] }) {
-  const [open, setOpen] = useState(index === total - 1)
+function Execution({ step, index, total, all, highlight }: { step: Step; index: number; total: number; all: Step[]; highlight: string | null }) {
   const calls = all.filter((s) => s.scope_id === step.id && !s.hidden && (s.kind === 'model_call' || s.kind === 'tool_call'))
+  // The last execution starts open, or the one holding a call the Tools tab pointed at.
+  const holdsHighlight = highlight !== null && calls.some((c) => c.id === highlight)
+  const [open, setOpen] = useState(highlight !== null && all.some((s) => s.id === highlight) ? holdsHighlight : index === total - 1)
   const duration = step.end_ns !== null ? formatDuration(step.end_ns - step.start_ns) : 'running'
   return (
     <section className="rounded-xl border border-border bg-canvas/40">
@@ -69,7 +73,7 @@ function Execution({ step, index, total, all }: { step: Step; index: number; tot
         <div className="space-y-3 border-t border-border px-3.5 py-3">
           {step.error && <ErrorBox message={step.error} />}
           {calls.length === 0 && step.input != null && <JsonBlock label="input" value={step.input} />}
-          {calls.map((call) => (call.kind === 'model_call' ? <ModelCallView key={call.id} step={call} /> : <ToolCallView key={call.id} step={call} />))}
+          {calls.map((call) => (call.kind === 'model_call' ? <ModelCallView key={call.id} step={call} /> : <ToolCallView key={call.id} step={call} highlighted={call.id === highlight} />))}
           {calls.length === 0 && step.output != null && <JsonBlock label="output" value={step.output} />}
           {step.kind === 'unknown' && <JsonBlock label="attributes" value={step.attributes} />}
         </div>
@@ -90,10 +94,17 @@ function ModelCallView({ step }: { step: Step }) {
   )
 }
 
-function ToolCallView({ step }: { step: Step }) {
+function ToolCallView({ step, highlighted = false }: { step: Step; highlighted?: boolean }) {
   const tool = step.tool
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (highlighted) ref.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [highlighted])
   return (
-    <div className={`rounded-lg border p-3 ${step.status === 'error' ? 'border-state-error/50' : 'border-border'}`}>
+    <div
+      ref={ref}
+      className={`rounded-lg border p-3 ${step.status === 'error' ? 'border-state-error/50' : 'border-border'} ${highlighted ? 'ring-2 ring-accent' : ''}`}
+    >
       <div className="mb-2 flex items-center gap-2 text-[12px]">
         <Wrench size={12} className="text-muted" />
         <span className="font-mono">{step.name}</span>

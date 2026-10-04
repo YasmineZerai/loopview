@@ -142,3 +142,45 @@ export interface RunUpdateEvent {
   steps: Step[] // only the steps that changed
   transitions: Transition[] // all of them
 }
+
+// --- the Tools tab (server: loopview/tools/report.py) ------------------------------
+
+export interface StepRef {
+  run_id: string
+  step_id: string
+}
+
+export interface AfterError {
+  blind_retry: number
+  fixed: number
+  fixed_succeeded: number
+  switched: number
+  gave_up: number
+}
+
+export interface ToolStats {
+  name: string
+  calls: number
+  errors: number
+  error_rate: number
+  after_error: AfterError
+  top_errors: { message_group: string; count: number; example_args: unknown; example_message: string; step_ref: StepRef }[]
+  confused_with: { tool: string; count: number }[]
+  avg_result_tokens_estimate: number | null
+  step_refs: StepRef[]
+}
+
+export interface ToolsReport {
+  summary: {
+    runs: number
+    tool_calls: number
+    errors: number
+    share_of_errors_from_top_2_tools: number | null
+    never_called_count: number
+    never_called_tokens_estimate: number
+    never_called_tokens_per_run_estimate: number
+  }
+  tools: ToolStats[]
+  never_called: { name: string; definition_tokens_estimate: number; carried_by_model_calls: number }[]
+  tool_list_recorded: boolean
+}
