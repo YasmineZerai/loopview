@@ -13,7 +13,9 @@ Passes:
    model or tool calls);
 4. link each step to its nearest visible parent and to its scope (the flow step
    it belongs to), promote nodes that contain other nodes to groups, build keys;
-5. derive transitions.
+5. give flat agent loops (GenAI: calls directly under the agent) `model` and
+   `tools` nodes, as LangGraph records them (loop_nodes.py);
+6. derive transitions.
 """
 
 import time
@@ -24,6 +26,7 @@ from loopview.cost.split import call_cost
 from loopview.ingest.raw import RawSpan
 from loopview.normalize.adapters import adapter_for
 from loopview.normalize.adapters.base import Classification, ParentHint, error_message
+from loopview.normalize.loop_nodes import add_loop_nodes
 from loopview.normalize.schema import (
     FLOW_KINDS,
     NormalizedRun,
@@ -62,7 +65,7 @@ def normalize_run(
     _add_inferred_parents(run, drafts, stale)
     _place_unclassified_starts(drafts)
     _decide_hidden(drafts)
-    steps = _link(run.trace_id, drafts, stale)
+    steps = add_loop_nodes(_link(run.trace_id, drafts, stale))
     transitions = derive_transitions(steps)
     return NormalizedRun(run=_run_info(run, steps, stale), steps=steps, transitions=transitions)
 

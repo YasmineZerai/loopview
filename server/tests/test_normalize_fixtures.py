@@ -40,7 +40,10 @@ def edges(n: NormalizedRun) -> Counter[tuple[str, str, str]]:
 def test_every_span_becomes_exactly_one_step(name: str) -> None:
     run = load_run(name)
     n = normalize_run(run, now_ns=run.last_received_ns)
-    assert {s.id for s in n.steps} == set(run.spans)  # nothing dropped, nothing invented
+    # Nothing dropped; the only steps without a span are the model and tools nodes
+    # of a flat agent loop (loop_nodes.py).
+    assert {s.id for s in n.steps if not s.synthetic} == set(run.spans)
+    assert all(s.name in ("model", "tools") for s in n.steps if s.synthetic)
     assert n.run.status == "ok"
     assert all(not s.inferred for s in n.steps)
 
@@ -75,8 +78,17 @@ def test_react_anthropic_single_agent() -> None:
     assert [t.name for t in tools].count("hotel_price") == 2
     hotel = next(t for t in tools if t.name == "hotel_price").tool
     assert hotel is not None and "city" in hotel.arguments and "eur_per_night" in hotel.result
-    assert all(t.parent_id == agent.id and t.scope_id == agent.id for t in tools)
-    assert n.transitions == []  # one agent, no flow between steps
+    # No span marks the model and tools steps of this loop, so they are added:
+    # each tool call sits in the `tools` step of the turn that asked for it.
+    by_id = {s.id: s for s in n.steps}
+    for t in tools:
+        holder = by_id[t.scope_id]  # type: ignore[index]
+        assert holder.synthetic and holder.name == "tools" and holder.scope_id == agent.id
+        assert t.parent_id == holder.id
+    assert all(by_id[c.scope_id].name == "model" for c in calls)  # type: ignore[index]
+    e = edges(n)
+    assert e[("sequence", "trip_budget_agent/model", "trip_budget_agent/tools")] == 3
+    assert e[("loop", "trip_budget_agent/tools", "trip_budget_agent/model")] == 3
 
 
 # --- GenAI, native (Pydantic AI multi-agent) ------------------------------------------
@@ -91,7 +103,7 @@ def test_multi_agent_nested_parallel_and_handoff() -> None:
     coordinator = next(s for s in run.spans.values() if s.name == "invoke_agent coordinator")
     assert n.run.session_id == coordinator.attributes["gen_ai.conversation.id"]
 
-    agents = {s.name: s for s in visible(n, "agent")}
+    agents = {s.name: s for s in visible(n, "agent") if not s.synthetic}
     assert set(agents) == {
         "laptop_advice",
         "coordinator",
@@ -101,18 +113,28 @@ def test_multi_agent_nested_parallel_and_handoff() -> None:
     }
     assert agents["laptop_advice"].type_label == "workflow"
     # Researchers run inside the coordinator's gather_facts tool: their visible parent
-    # is the tool call, their scope (graph container) is the coordinator.
+    # is the tool call, their scope is the coordinator's `tools` step for that turn,
+    # which holds them and so is a group.
     gather = next(s for s in visible(n, "tool_call") if s.name == "gather_facts")
+    tools_step = next(s for s in n.steps if s.id == gather.scope_id)
+    assert tools_step.synthetic and tools_step.kind == "agent"
+    assert tools_step.scope_id == agents["coordinator"].id
     for name in ("specs_researcher", "reviews_researcher"):
         assert agents[name].parent_id == gather.id
-        assert agents[name].scope_id == agents["coordinator"].id
+        assert agents[name].scope_id == tools_step.id
 
     e = edges(n)
-    assert e[("handoff", "laptop_advice/coordinator", "laptop_advice/writer")] == 1
+    coordinator_key = "laptop_advice/coordinator"
+    assert e[("handoff", coordinator_key, "laptop_advice/writer")] == 1
+    # The coordinator's loop: model -> tools (a step of the loop, not a handoff) -> model.
+    assert e[("sequence", f"{coordinator_key}/model", f"{coordinator_key}/tools")] == 1
+    assert e[("loop", f"{coordinator_key}/tools", f"{coordinator_key}/model")] == 1
     for name in ("specs_researcher", "reviews_researcher"):
-        key = f"laptop_advice/coordinator/{name}"
-        assert e[("delegate", "laptop_advice/coordinator", key)] == 1
-        assert e[("return", key, "laptop_advice/coordinator")] == 1
+        key = f"{coordinator_key}/tools/{name}"
+        assert e[("delegate", f"{coordinator_key}/tools", key)] == 1
+        assert e[("return", key, f"{coordinator_key}/tools")] == 1
+    # The writer makes no tool calls: no loop to show, so it stays one card.
+    assert not any(s.synthetic and s.scope_id == agents["writer"].id for s in n.steps)
 
 
 # --- OpenInference (LangGraph) ----------------------------------------------------

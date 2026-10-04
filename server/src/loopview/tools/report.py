@@ -135,7 +135,8 @@ class Call:
 def _agent_of(step: Step, by_id: dict[str, Step]) -> str:
     parent = by_id.get(step.parent_id) if step.parent_id else None
     while parent is not None:
-        if parent.kind == "agent":
+        # A synthetic `tools` step can be a group (it holds sub-agents); it isn't an agent.
+        if parent.kind == "agent" and not parent.synthetic:
             return parent.name
         parent = by_id.get(parent.parent_id) if parent.parent_id else None
     return ""  # a call outside any agent: the run itself is its agent

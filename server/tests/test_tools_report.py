@@ -369,7 +369,7 @@ def test_mcp_study_fixture_normalizes_completely() -> None:
     load_capture(store, FIXTURES / "mcp_tools_study.otlp.jsonl")
     for run in store.runs():
         n = normalize_run(run, now_ns=run.last_received_ns)
-        assert {s.id for s in n.steps} == set(run.spans)
+        assert {s.id for s in n.steps if not s.synthetic} == set(run.spans)
         assert n.run.status == "ok"
 
 

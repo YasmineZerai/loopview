@@ -94,8 +94,8 @@ def _label(edges: list[tuple[str, str]], members: list[Step]) -> list[Transition
             kind = "fan_out"
         elif in_degree[target_id] > 1:
             kind = "fan_in"
-        elif target.kind == "agent":
-            kind = "handoff"
+        elif target.kind == "agent" and not target.synthetic:
+            kind = "handoff"  # a synthetic tools group is a step of the loop, not an agent
         else:
             kind = "sequence"
         result.append(_transition(source, target, kind))
