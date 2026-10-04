@@ -36,6 +36,7 @@ loopview draws the run as a graph that builds itself while the agent runs:
 - **Every step can be opened** to read its thinking, its replies, and each tool call's arguments and result, right in the graph.
 - **Any run can be replayed** at 0.5x to 4x, with the graph and the activity feed on the same clock.
 - **A cost tree shows where the money goes**: the run branches into agents and steps, each branch as thick as its cost, down to what the tokens were spent on.
+- **A Tools tab shows which tools an agent struggles with** across many runs: how often each fails, what the agent does next, and which tools it is offered but never uses.
 
 It works with **any framework that emits OpenTelemetry traces** (LangGraph, Pydantic AI, the OpenAI and Anthropic SDKs, or your own code), and it runs **on your machine**: one command, no account, no database, nothing sent anywhere.
 
@@ -67,6 +68,23 @@ Or skip the screenshots: [**open the live demo**](https://yasminezerai.github.io
 <img src="docs/screenshot-cost.png" alt="The cost tree: the run's trunk branches into agents and steps, each branch as thick as its cost, and the most expensive step opens into what its tokens were spent on">
 
 Press <kbd>c</kbd> and the run becomes a tree: the trunk branches into agents and their steps, each branch as thick as the money flowing through it, and any step opens into what its tokens went to (system prompt, tool definitions, history, tool results, cache reads and writes, thinking, reply), each in its own colour. Totals are the token counts your provider reported, priced from an editable file; the split between them is estimated from the recorded content, and whatever can't be explained is shown as "unattributed" rather than guessed.
+
+## Which tools does your agent struggle with?
+
+<img src="docs/screenshot-tools.png" alt="The Tools tab after 20 tasks on GitHub's MCP server: a table of tools sorted by errors, one opened to show its most common error, the arguments of the failing call and a link to it in the graph">
+
+Press <kbd>o</kbd> for the Tools tab. Across all runs (or one session), it shows how each tool really behaves: how often it fails, what the agent does after a failure, which tools it switches between, and which ones it is offered but never calls. Tool description linters score the text; this shows what happens in real runs. A line at the top sums it up, for example "20 runs, 312 tool calls, 41 errors. 2 tools caused 78% of errors. 15 tools never used (about 9,000 tokens per run, estimated)."
+
+| Column | Means |
+|---|---|
+| Calls | finished calls of the tool |
+| Errors, error rate | calls the trace marks as failed: span status error, an exception, or an MCP result with `isError: true` |
+| After an error | what the agent did next, once the error was back in front of the model: **blind retry** (same tool, same arguments), **fixed arguments** (same tool, other arguments), **switched tool**, or **gave up** (no further tool call by that agent in the run) |
+| Avg result (est.) | average size of a successful result, in estimated tokens |
+
+Click a tool to see its most common errors (grouped, with the arguments of an example call), the tools it was swapped for, and links that open the run on that exact call in the graph. Below the table, **Never called** lists tools that were offered but never used, with the estimated cost of sending their definitions. If the traces don't record which tools the model was offered, it says so instead of guessing.
+
+To try it on a real MCP server, [`examples/mcp_tools_study.py`](examples/mcp_tools_study.py) runs 20 read-only tasks against GitHub's MCP server and prints the same summary. The definitions, and why they are what they are, are in [DECISIONS.md](DECISIONS.md) (D44).
 
 ## Quick start
 
@@ -236,6 +254,7 @@ Standard OpenTelemetry exporters send a span only when it **ends**, but a live v
 | <kbd>e</kbd> | open or close every step in the graph |
 | <kbd>a</kbd> | show or hide the activity feed |
 | <kbd>c</kbd> | switch between the graph and the cost tree |
+| <kbd>o</kbd> | switch between the graph and the Tools tab |
 | <kbd>t</kbd> | show or hide the timeline |
 | <kbd>f</kbd> | fit the graph to the screen |
 | <kbd>esc</kbd> | close the details panel |
@@ -254,6 +273,9 @@ Prices for Anthropic and OpenAI models live in [`pricing.json`](server/src/loopv
 - Runs are kept in memory (200 by default); use `--persist` to keep them across restarts.
 - The cost split is an estimate: tokens are approximated from characters (about 4 per token for prose, 3 for JSON), then scaled to the reported totals. The totals themselves are exact. Prices cover Anthropic and OpenAI at list price (standard tier): Anthropic cache writes use the 5 minute rate, and OpenAI's higher rate for prompts above 272K tokens isn't applied.
 - Calls without recorded content show their total cost but no split. Calls whose framework reports no token counts are listed but not counted.
+- The Tools tab only counts errors the tool reports. A tool that "succeeds" with a wrong or empty result isn't caught, and errors are never guessed from the result text.
+- In the Tools tab, token numbers for tool definitions and results are estimates (characters / 4).
+- "After an error" looks at the same agent only: if another agent recovers (a supervisor retrying for a worker), that isn't tracked.
 
 ## Development
 
@@ -274,7 +296,7 @@ For UI work with hot reload, keep the server running and run `npm run dev` in `u
 - Recorded fixtures for the OpenAI SDK, the OpenAI Agents SDK and more frameworks.
 - A TypeScript `loopview-sdk` for Node agents.
 - Comparing two runs of the same agent side by side.
-- Cost per tool: how much each tool's definition and results cost across a run.
+- Cost per tool in the cost tree: how much each tool's definition and results cost across a run (the Tools tab already estimates it for unused tools).
 - Prices for Google and other providers, and a recorded OpenAI run to test against.
 
 ## License

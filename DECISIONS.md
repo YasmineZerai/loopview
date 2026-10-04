@@ -189,3 +189,32 @@ One short entry per significant decision: what was chosen, what was rejected, an
 - **Chosen:** a tree drawn left to right, taking the whole canvas (<kbd>c</kbd> switches between graph and cost). The trunk is the run; it branches into agents, then steps. Every bar is as tall as its cost and the branches leaving it stack up to exactly its height, so the money can be followed from the trunk to every leaf (a Sankey drawn as a tree). The trunk and each step are stacked by what their tokens were spent on; clicking a step opens it into one leaf per segment. The most expensive step starts open. Hovering keeps the hovered branch lit and fades the rest; double-clicking a step shows its card in the graph.
 - **Layout:** pure functions in `costTree.ts` (tested): leaves stacked top to bottom with room for their label, each parent centred on its children, branches straight for a while before they curve so labels sit on a calm band. Plain SVG, no chart library.
 - **Rejected:** a sunburst (angles are hard to compare, labels don't fit), cost badges on the graph cards (good for one step, poor for comparing many), and the icicle (correct, but blocks don't read as a tree).
+
+## D44. The Tools tab: definitions, and errors only from what the trace says
+- **Problem:** static linters score tool descriptions, but they can't show how a tool behaves in real runs: how often it fails, what the agent does next, which tools it mixes up, which ones it is offered and never uses. What each framework records is in [docs/tool-data.md](docs/tool-data.md).
+- **Where:** `tools/report.py`, pure functions over normalized runs, tested with pytest on synthetic runs and the fixtures. `GET /api/tools` (all runs, `?session=` or `?runs=`) recomputes on every request, which is cheap at a few hundred runs.
+- **Definitions:**
+  - *Tool call:* a finished `tool_call` step.
+  - *Error:* the trace marks the call as failed: span status ERROR (with or without an exception event), or an MCP result with `isError: true`.
+  - *Canonical arguments:* JSON with sorted keys, so identical calls compare equal.
+  - *Agent:* the nearest agent above the call, by name, within its run.
+  - *Next move after an error:* read from the agent's turns whose model call started after the failed call ended. *Blind retry*: the same tool with identical arguments; *fixed*: the same tool with other arguments (and whether that worked); *switched*: another tool, recorded as a pair; *gave up*: no further tool call by that agent in the run. Calls to tools that also failed in the failed call's own turn are skipped, since they are those tools' own retries.
+  - *Error group:* the message with UUIDs, hex ids, quoted values longer than 12 characters and numbers replaced by placeholders, cut at 200 characters.
+  - *Confused pair:* a switch from A to B, counted across runs, shown from two occurrences.
+  - *Offered tools:* the definitions recorded on model calls. With none in the runs, the tool list is "not recorded" and nothing is said about unused tools.
+  - *Never called:* offered at least once, called zero times. *Definition cost (estimate):* the definition's JSON length / 4, times the model calls that carried it.
+  - *Result size (estimate):* average result length / 4 over successful calls.
+- **"Next" is a turn, not the next call** (a change from the first plan). Models request several tools in one turn; the call that starts right after a failure was usually requested before the model saw the error, so counting it would call a parallel call a "fix". A tool call belongs to the agent's latest model call that had *ended* when the tool started: compared with ends, not starts, so it stays right when timestamps tie (D17). An agent with no recorded model calls falls back to its next tool call.
+- **Errors are never guessed from the result text in v1.** A tool that returns "Error: not found" as an ordinary result counts as a success. Guessing would need rules per tool and language, and would mark legitimate results ("0 errors found") as failures. A wrong count that looks precise is worse than a known blind spot, which the README states.
+- **Rejected:** "next move" across agents (a supervisor recovering for a worker). It needs to know which agent acts for which, which no convention records.
+
+## D45. The Tools tab in the UI
+- **A table, not a graph:** the question is "which tools", across many runs, so rows sorted by errors answer it directly. Sorting, the after-error bar and the summary sentence are pure functions (`tools/toolsModel.ts`, tested); the component only draws.
+- **After-error colours:** blind retry amber, fixed blue, switched magenta, each validated for contrast and colour-blind separation against both themes' surfaces. "Gave up" is hatched grey, like "unattributed" in the cost view: it is the absence of a move. The legend sits above the table, and every segment has a label in its tooltip.
+- **Jump to a step:** `openStep(run, step)` selects the run, opens the card of the node that made the call, and outlines that call in the details panel. A run that isn't loaded yet is fetched first; the graph re-centres on the card for a short while after each new layout, because opening a card changes the layout.
+- **Every token number says it is an estimate** (`~`, "est.", "estimated").
+- **Hosted demo:** `dump_normalized` writes the report over all fixtures to `tools.json`, so the demo shows the real numbers without a server. With the MCP study (20 runs, 4 MB normalized) the demo no longer downloads every run up front: `index.json` carries each run's RunInfo, and a run's file is fetched when it is opened. Multi-run fixtures are written for the demo only, not into the UI test data.
+
+## D46. loopview never traces itself
+- **Found while building the MCP study:** FastAPI 0.142 traces its own requests and, on startup, exports them to the endpoint in `OTEL_EXPORTER_OTLP_*`, the variables users set to point their agents at loopview. With them set in loopview's shell, every batch loopview received produced spans sent back to loopview: 28 runs of its own requests in 3 seconds, growing without end.
+- **Chosen:** `create_app` passes `telemetry` with tracing, metrics, logs and auto-configuration off, when the installed FastAPI has that option (older versions don't trace themselves). A test checks that no run appears and no global tracer provider is installed.
