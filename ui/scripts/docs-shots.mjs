@@ -36,11 +36,15 @@ await state(() => window.__loopview.getState().theme === 'dark' && window.__loop
 const reactId = await importFixture('react_anthropic')
 const multiId = await importFixture('multi_agent_pydantic')
 const flagshipId = (await (await fetch(`${base}/api/demo`, { method: 'POST' })).json()).trace_ids[0]
+const setActivity = (on) => state((v) => window.__loopview.getState().activity !== v && window.__loopview.getState().toggleActivity(), on)
 
-// 1. Hero: the flagship mid-run, three analysts working in parallel, feed open.
+// 1. Hero: the flagship mid-run, Activity on: cards open, the view on the analysts.
 await select(flagshipId)
+await setActivity(true)
 await at(9.2)
+await settle(1200)
 await shot('screenshot-graph')
+await setActivity(false)
 
 // 2. A card expanded inside the graph: the single agent, thinking and tool calls.
 await select(reactId)
@@ -64,14 +68,12 @@ await shot('screenshot-dark')
 await state(() => window.__loopview.getState().toggleDock())
 await state(() => window.__loopview.getState().toggleTheme())
 
-// 5. The cost tree, whole flagship run, with the activity feed closed.
+// 5. The cost tree, whole flagship run.
 await at(null)
-await state(() => window.__loopview.getState().togglePanel('activity'))
 await state(() => window.__loopview.getState().setView('cost'))
 await page.mouse.move(5, 500)
 await settle(1800)
 await shot('screenshot-cost')
 await state(() => window.__loopview.getState().setView('graph'))
-await state(() => window.__loopview.getState().togglePanel('activity'))
 
 await browser.close()

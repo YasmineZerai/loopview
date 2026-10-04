@@ -89,3 +89,6 @@ export const Coin = ({ size, className }: P) => (
 export const Expand =({ size, className }: P) => (
   <svg {...base(size)} className={className}><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M7 9h10M7 13h10M7 17h6" /></svg>
 )
+export const Nodes = ({ size, className }: P) => (
+  <svg {...base(size)} className={className}><rect x="3" y="4" width="7" height="6" rx="1.5" /><rect x="14" y="14" width="7" height="6" rx="1.5" /><path d="M6.5 10v3.5a2 2 0 0 0 2 2H14" /></svg>
+)

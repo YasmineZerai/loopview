@@ -31,7 +31,7 @@ interface State {
   selectedKey: string | null // graph node shown in the details panel
   hoverKey: string | null // graph node hovered in the graph or the timeline
   collapsed: Set<string> // collapsed groups
-  // Cards showing their calls inline. With expandAll on, the set lists the
+  // Cards showing their calls inline. With expandAll (or activity) on, the set lists the
   // cards the user closed instead of the ones they opened.
   expanded: Set<string>
   expandAll: boolean
@@ -40,7 +40,9 @@ interface State {
   sidebarOpen: boolean
   theme: Theme
   dockOpen: boolean // playback + timeline at the bottom
-  panel: SidePanel | null // the right-hand panel
+  // Activity in the graph: every card shows its calls and the view follows the
+  // card where something is happening (graph/activity.ts).
+  activity: boolean
   view: View // what the canvas shows
   costUnit: 'dollars' | 'tokens'
   focusRequest: { key: string; at: number } | null // a card the graph should centre
@@ -60,7 +62,7 @@ interface State {
   toggleSidebar: () => void
   toggleTheme: () => void
   toggleDock: () => void
-  togglePanel: (panel: SidePanel) => void
+  toggleActivity: () => void
   setView: (view: View) => void
   setCostUnit: (unit: 'dollars' | 'tokens') => void
   focusCard: (key: string) => void
@@ -68,8 +70,6 @@ interface State {
 }
 
 export type View = 'graph' | 'cost' | 'tools'
-
-export type SidePanel = 'activity'
 
 export type Theme = 'light' | 'dark'
 
@@ -90,10 +90,6 @@ function savePref(key: string, value: string | boolean) {
   } catch {
     // not persisted; the preference still applies for this visit
   }
-}
-
-function loadPanel(): SidePanel | null {
-  return loadPref<string>('panel', 'activity') === 'none' ? null : 'activity'
 }
 
 export function applyTheme(theme: Theme) {
@@ -120,7 +116,7 @@ export const useStore = create<State>((set, get) => ({
   sidebarOpen: true,
   theme: loadPref<Theme>('theme', 'light'),
   dockOpen: loadPref('dockOpen', false),
-  panel: loadPanel(),
+  activity: loadPref('activity', true),
   view: 'graph',
   costUnit: loadPref<'dollars' | 'tokens'>('costUnit', 'dollars'),
   focusRequest: null,
@@ -203,11 +199,9 @@ export const useStore = create<State>((set, get) => ({
     savePref('dockOpen', !get().dockOpen)
     set({ dockOpen: !get().dockOpen })
   },
-  // Open a panel, or close it when it is the one already open.
-  togglePanel: (panel) => {
-    const next = get().panel === panel ? null : panel
-    savePref('panel', next ?? 'none')
-    set({ panel: next })
+  toggleActivity: () => {
+    savePref('activity', !get().activity)
+    set({ activity: !get().activity, expanded: new Set() })
   },
   setView: (view) => set({ view }),
   setCostUnit: (costUnit) => {
@@ -240,8 +234,8 @@ function showPendingStep() {
   useStore.setState({ pendingStep: null, highlightStep: step!.id, selectedKey: key, focusRequest: { key, at: Date.now() } })
 }
 
-export function isExpanded(state: { expanded: Set<string>; expandAll: boolean }, key: string) {
-  return state.expandAll !== state.expanded.has(key)
+export function isExpanded(state: { expanded: Set<string>; expandAll: boolean; activity?: boolean }, key: string) {
+  return (state.expandAll || !!state.activity) !== state.expanded.has(key)
 }
 
 export const useSelectedRun = () => useStore((s) => (s.selectedRunId ? s.loaded.get(s.selectedRunId) : undefined))

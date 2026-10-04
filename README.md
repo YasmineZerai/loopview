@@ -33,8 +33,8 @@ loopview draws the run as a graph that builds itself while the agent runs:
 - **Agents are groups, steps are cards**, each agent in its own colour.
 - **Control flow moves along the edges.** Parallel branches run side by side, loops show as an arc back with a counter, handoffs as an edge between agents.
 - **Tool calls fire next to the step that made them**, and a failed call turns red.
-- **Every step can be opened** to read its thinking, its replies, and each tool call's arguments and result, right in the graph.
-- **Any run can be replayed** at 0.5x to 4x, with the graph and the activity feed on the same clock.
+- **Every step can be opened** to read its thinking, its replies, and each tool call's arguments and result, right in the graph. With **Activity** on, cards open by themselves and the view follows the step that's running.
+- **Any run can be replayed** at 0.5x to 4x, with everything in the graph on the same clock.
 - **A cost tree shows where the money goes**: the run branches into agents and steps, each branch as thick as its cost, down to what the tokens were spent on.
 - **A Tools tab shows which tools an agent struggles with** across many runs: how often each fails, what the agent does next, and which tools it is offered but never uses.
 
@@ -44,11 +44,11 @@ It works with **any framework that emits OpenTelemetry traces** (LangGraph, Pyda
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/screenshot-graph.png" alt="A supervisor with three analysts running in parallel, and the activity feed"></td>
+    <td width="50%"><img src="docs/screenshot-graph.png" alt="A supervisor with three analysts running in parallel, with Activity on: the cards show what each one is doing"></td>
     <td width="50%"><img src="docs/screenshot-expanded.png" alt="A step opened in the graph, showing the model's thinking and tool calls"></td>
   </tr>
   <tr>
-    <td><b>Parallel agents, live.</b> Three analysts work at the same time. The feed on the right shows what each one thinks, says and does.</td>
+    <td><b>Parallel agents, live.</b> Three analysts work at the same time. With Activity on, the cards show what each one thinks, says and does, and the view follows the one that's running.</td>
     <td><b>Open any step.</b> Its thinking, replies, and every tool call with arguments and results, inside the graph.</td>
   </tr>
   <tr>
@@ -218,7 +218,7 @@ flowchart LR
     ST --> N[Normalizer<br/>one adapter per convention]
     N --> T[Transitions]
     T --> H[Live hub<br/>SSE, 10 updates/s]
-    H --> UI[Browser<br/>graph, feed, replay]
+    H --> UI[Browser<br/>graph, cost, tools, replay]
     ST -. --persist .-> F[(JSONL file)]
 ```
 
@@ -252,9 +252,8 @@ Standard OpenTelemetry exporters send a span only when it **ends**, but a live v
 | <kbd>space</kbd> | play or pause the replay |
 | <kbd>←</kbd> <kbd>→</kbd> | step through events |
 | <kbd>e</kbd> | open or close every step in the graph |
-| <kbd>a</kbd> | show or hide the activity feed |
-| <kbd>c</kbd> | switch between the graph and the cost tree |
-| <kbd>o</kbd> | switch between the graph and the Tools tab |
+| <kbd>g</kbd> <kbd>c</kbd> <kbd>o</kbd> | the Graph, Cost and Tools tabs |
+| <kbd>a</kbd> | Activity on or off: cards open and the view follows the running step |
 | <kbd>t</kbd> | show or hide the timeline |
 | <kbd>f</kbd> | fit the graph to the screen |
 | <kbd>esc</kbd> | close the details panel |

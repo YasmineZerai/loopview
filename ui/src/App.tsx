@@ -1,23 +1,25 @@
-// Layout: run list on the left, the graph in the middle, the activity feed on
-// the right. The middle can switch to the cost tree (c) or the Tools tab (o). Details slide in over the graph; the playback bar and timeline are
-// a dock at the bottom, hidden until asked for (a small floating control remains).
+// Layout: run list on the left, the canvas in the middle. The top bar has three
+// main tabs for the canvas (graph, cost tree, tools) and, to the right, quieter
+// controls for the current view. Activity is shown in the graph itself (a), not
+// in a side panel: cards open and the view follows what is happening. Details
+// slide in over the graph; the playback bar and timeline are a dock at the
+// bottom, hidden until asked for (a small floating control remains).
 
 import { ReactFlowProvider, useReactFlow } from '@xyflow/react'
 import { useEffect } from 'react'
 import { api, STATIC_DEMO, subscribe } from './api'
 import { DemoHint, useDemoAutoplay } from './components/DemoHint'
-import { ActivityFeed } from './components/ActivityFeed'
 import { CostTree } from './components/cost/CostTree'
 import { ToolsView } from './components/tools/ToolsView'
 import { DetailsPanel } from './components/details/DetailsPanel'
 import { EmptyState } from './components/EmptyState'
 import { GraphView } from './components/graph/GraphView'
-import { Activity, Coin, Download, Expand, Fit, Logo, Moon, Sidebar, Sun, Wrench } from './components/icons'
+import { Activity, Coin, Download, Expand, Fit, Logo, Moon, Nodes, Sidebar, Sun, Wrench } from './components/icons'
 import { MiniPlayback, PlaybackBar, stepEvent, togglePlay, usePlaybackClock } from './components/PlaybackBar'
 import { RunList } from './components/RunList'
 import { StatusMark } from './components/StatusMark'
 import { Timeline } from './components/Timeline'
-import { useSelectedRun, useStore } from './store'
+import { useSelectedRun, useStore, type View } from './store'
 import { formatDuration } from './theme'
 
 export default function App() {
@@ -27,7 +29,6 @@ export default function App() {
   const hasRuns = useStore((s) => s.runs.size > 0)
   const sidebarOpen = useStore((s) => s.sidebarOpen)
   const dockOpen = useStore((s) => s.dockOpen)
-  const panel = useStore((s) => s.panel)
   const view = useStore((s) => s.view)
 
   return (
@@ -61,33 +62,33 @@ export default function App() {
               </div>
             )}
           </main>
-          <aside
-            className={`shrink-0 overflow-hidden border-l border-border bg-canvas transition-[width] duration-250 ease-out ${panel && hasRuns ? 'w-[380px]' : 'w-0'}`}
-          >
-            <div className="h-full w-[380px]">
-              <ActivityFeed />
-            </div>
-          </aside>
         </div>
       </div>
     </ReactFlowProvider>
   )
 }
 
+const VIEWS: { id: View; label: string; key: string; title: string; Icon: typeof Nodes }[] = [
+  { id: 'graph', label: 'Graph', key: 'g', title: 'The run as a live graph', Icon: Nodes },
+  { id: 'cost', label: 'Cost', key: 'c', title: 'Where the money goes, as a tree', Icon: Coin },
+  { id: 'tools', label: 'Tools', key: 'o', title: 'Which tools fail, and what the agent does next, across runs', Icon: Wrench },
+]
+
 function TopBar() {
   const loaded = useSelectedRun()
   const connected = useStore((s) => s.connected)
   const theme = useStore((s) => s.theme)
-  const panel = useStore((s) => s.panel)
   const view = useStore((s) => s.view)
   const expandAll = useStore((s) => s.expandAll)
-  const { toggleSidebar, toggleTheme, togglePanel, setView, toggleExpandAll } = useStore.getState()
+  const activity = useStore((s) => s.activity)
+  const { toggleSidebar, toggleTheme, toggleActivity, setView, toggleExpandAll } = useStore.getState()
   const { fitView } = useReactFlow()
   const run = loaded?.run
-  const button = 'flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[12px] text-muted hover:bg-overlay hover:text-text'
+  // Secondary controls: small and quiet next to the main tabs.
+  const control = 'flex items-center gap-1.5 rounded-md px-2 py-1 text-[11.5px] text-muted hover:bg-overlay hover:text-text'
 
   return (
-    <header className="flex h-11 shrink-0 items-center gap-3 border-b border-border bg-surface px-3">
+    <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border bg-surface px-3">
       <button className="rounded-md p-1.5 text-muted hover:bg-overlay hover:text-text" onClick={toggleSidebar} title="Toggle runs">
         <Sidebar size={16} />
       </button>
@@ -95,71 +96,80 @@ function TopBar() {
         <Logo size={18} />
         <span className="text-[14px] font-semibold tracking-tight">loopview</span>
       </div>
+
       {run && (
-        <div className="flex min-w-0 items-center gap-2.5 border-l border-border pl-3">
-          <StatusMark status={run.status} size={13} />
-          <span className="truncate font-mono text-[13px]">{run.name}</span>
-          {run.service_name && <span className="truncate text-[12px] text-muted">{run.service_name}</span>}
-          {run.end_ns !== null && <span className="font-mono text-[12px] text-muted">{formatDuration(run.end_ns - run.start_ns)}</span>}
+        <nav className="ml-2 flex items-center gap-1 rounded-lg border border-border bg-canvas p-0.5" aria-label="Views">
+          {VIEWS.map(({ id, label, key, title, Icon }) => {
+            const active = view === id
+            return (
+              <button
+                key={id}
+                onClick={() => setView(id)}
+                title={`${title} (${key})`}
+                aria-current={active ? 'page' : undefined}
+                style={{ '--tab': `var(--color-view-${id})` } as React.CSSProperties}
+                className={`view-tab flex items-center gap-1.5 rounded-md px-3 py-1 text-[13px] font-medium ${active ? 'is-active' : ''}`}
+              >
+                <Icon size={14} className="view-tab-icon" /> {label}
+              </button>
+            )
+          })}
+        </nav>
+      )}
+
+      {run && (
+        <div className="flex min-w-0 items-center gap-2 pl-1">
+          <StatusMark status={run.status} size={12} />
+          <span className="truncate font-mono text-[12.5px]">{run.name}</span>
+          {run.service_name && <span className="hidden truncate text-[11.5px] text-muted xl:inline">{run.service_name}</span>}
+          {run.end_ns !== null && <span className="font-mono text-[11.5px] text-muted">{formatDuration(run.end_ns - run.start_ns)}</span>}
         </div>
       )}
-      <div className="ml-auto flex items-center gap-1">
+
+      <div className="ml-auto flex items-center gap-0.5">
         {STATIC_DEMO ? (
           <a
-            className="mr-1 flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-[11.5px] text-muted hover:text-text"
+            className="mr-2 flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-[11.5px] text-muted hover:text-text"
             href="https://github.com/YasmineZerai/loopview"
             title="These are recorded runs. Install loopview to watch your own agents live."
           >
             <span className="h-1.5 w-1.5 rounded-full bg-accent" /> Recorded demo · Get loopview
           </a>
         ) : (
-          <span className="mr-2 flex items-center gap-1.5 text-[11.5px] text-muted" title={connected ? 'Receiving live updates' : 'Reconnecting'}>
+          <span className="mr-2 flex items-center gap-1.5 text-[11px] text-muted" title={connected ? 'Receiving live updates' : 'Reconnecting'}>
             <span className={`h-1.5 w-1.5 rounded-full ${connected ? 'bg-state-ok' : 'bg-state-idle'}`} />
             {connected ? 'connected' : 'offline'}
           </span>
         )}
-        {run && (
+        {run && view === 'graph' && (
           <>
-            <button className={button} onClick={() => fitView({ duration: 300, padding: 0.12 })} title="Fit to screen (f)">
-              <Fit size={14} /> Fit
-            </button>
             <button
-              className={`${button} ${expandAll ? 'bg-overlay text-text' : ''}`}
-              onClick={toggleExpandAll}
-              title="Show every step's calls inside the graph (e)"
+              className={`${control} ${activity ? 'text-text' : ''}`}
+              onClick={toggleActivity}
+              aria-pressed={activity}
+              title="Show what happens inside the graph: cards open and the view follows the running step (a)"
             >
-              <Expand size={14} /> {expandAll ? 'Collapse all' : 'Expand all'}
+              <Activity size={13} /> Activity
+              <span className={`ml-0.5 h-1.5 w-1.5 rounded-full ${activity ? 'bg-[var(--color-view-graph)]' : 'bg-border'}`} />
             </button>
-            {!STATIC_DEMO && (
-              <a className={button} href={api.exportUrl(run.id)} title="Export this run as JSONL">
-                <Download size={14} /> Export
-              </a>
+            {!activity && (
+              <button className={`${control} ${expandAll ? 'text-text' : ''}`} onClick={toggleExpandAll} title="Show every step's calls inside the graph (e)">
+                <Expand size={13} /> {expandAll ? 'Collapse' : 'Expand'}
+              </button>
             )}
-            <button
-              className={`${button} ${panel === 'activity' ? 'bg-overlay text-text' : ''}`}
-              onClick={() => togglePanel('activity')}
-              title="Show what the agents think, say and do (a)"
-            >
-              <Activity size={14} /> Activity
-            </button>
-            <button
-              className={`${button} ${view === 'cost' ? 'bg-overlay text-text' : ''}`}
-              onClick={() => setView(view === 'cost' ? 'graph' : 'cost')}
-              title="Show where the money goes, as a tree (c)"
-            >
-              <Coin size={14} /> Cost
-            </button>
-            <button
-              className={`${button} ${view === 'tools' ? 'bg-overlay text-text' : ''}`}
-              onClick={() => setView(view === 'tools' ? 'graph' : 'tools')}
-              title="Which tools fail, and what the agent does next, across runs (o)"
-            >
-              <Wrench size={14} /> Tools
+            <button className={control} onClick={() => fitView({ duration: 300, padding: 0.12 })} title="Fit to screen (f)">
+              <Fit size={13} /> Fit
             </button>
           </>
         )}
-        <button className={button} onClick={toggleTheme} title={theme === 'light' ? 'Dark mode' : 'Light mode'}>
-          {theme === 'light' ? <Moon size={14} /> : <Sun size={14} />}
+        {run && !STATIC_DEMO && (
+          <a className={control} href={api.exportUrl(run.id)} title="Export this run as JSONL">
+            <Download size={13} /> Export
+          </a>
+        )}
+        <span className="mx-1 h-4 w-px bg-border" />
+        <button className={control} onClick={toggleTheme} title={theme === 'light' ? 'Dark mode' : 'Light mode'}>
+          {theme === 'light' ? <Moon size={13} /> : <Sun size={13} />}
         </button>
       </div>
     </header>
@@ -180,7 +190,8 @@ function KeyboardShortcuts() {
       else if (e.key === 'ArrowLeft') stepEvent(-1)
       else if (e.key === 'f') fitView({ duration: 300, padding: 0.12 })
       else if (e.key === 't') store.toggleDock()
-      else if (e.key === 'a') store.togglePanel('activity')
+      else if (e.key === 'a') store.toggleActivity()
+      else if (e.key === 'g') store.setView('graph')
       else if (e.key === 'c') store.setView(store.view === 'cost' ? 'graph' : 'cost')
       else if (e.key === 'o') store.setView(store.view === 'tools' ? 'graph' : 'tools')
       else if (e.key === 'e') store.toggleExpandAll()

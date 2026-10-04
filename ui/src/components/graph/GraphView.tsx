@@ -10,6 +10,7 @@ import {
   type Node,
 } from '@xyflow/react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { activeCardKey } from '../../graph/activity'
 import { buildGraph, collapseGraph } from '../../graph/buildGraph'
 import { computeLayout, hasCalls, type Layout } from '../../graph/layout'
 import { isExpanded, useSelectedRun, useStore } from '../../store'
@@ -25,6 +26,8 @@ const NO_CALLS: Step[] = []
 const edgeTypes = { flow: FlowEdge }
 // How long after a focus request new layouts still re-centre on the card.
 const FOCUS_WINDOW_MS = 2000
+// Following the activity zooms in at least this far, so an open card is readable.
+const FOLLOW_MIN_ZOOM = 0.75
 
 export function GraphView() {
   const loaded = useSelectedRun()
@@ -63,14 +66,15 @@ export function GraphView() {
   // Which cards are expanded right now (only cards, and only ones with calls).
   const expandedState = useStore((s) => s.expanded)
   const expandAll = useStore((s) => s.expandAll)
+  const activity = useStore((s) => s.activity)
   const expanded = useMemo(() => {
     const keys = new Set<string>()
     for (const node of graph?.nodes ?? []) {
       const isCard = node.kind !== 'agent' || node.collapsed || !graph!.nodes.some((n) => n.groupKey === node.key)
-      if (isCard && hasCalls(node) && isExpanded({ expanded: expandedState, expandAll }, node.key)) keys.add(node.key)
+      if (isCard && hasCalls(node) && isExpanded({ expanded: expandedState, expandAll, activity }, node.key)) keys.add(node.key)
     }
     return keys
-  }, [graph, expandedState, expandAll])
+  }, [graph, expandedState, expandAll, activity])
 
   // Layout reruns only when the structure (or which cards are expanded) changes,
   // not on status changes.
@@ -100,8 +104,14 @@ export function GraphView() {
   // measured new nodes yet, and fitView would frame the old graph.
   const runId = loaded?.run.id
   const bounds = useRef<{ x: number; y: number; width: number; height: number } | null>(null)
+  // With Activity on the camera follows the active card, so the whole graph is
+  // framed once per run instead of after every layout.
+  const fittedRun = useRef<string | undefined>(undefined)
+  const activityRef = useRef(activity)
+  activityRef.current = activity
   useEffect(() => {
     if (!layout || !graphRef.current) return
+    if (activityRef.current && fittedRun.current === runId) return
     const topLevel = graphRef.current.nodes.filter((n) => !n.groupKey).map((n) => layout.boxes.get(n.key))
     const boxes = topLevel.filter((b) => b !== undefined)
     if (boxes.length === 0) return
@@ -114,6 +124,7 @@ export function GraphView() {
     const h = Math.max(height, 420)
     bounds.current = { x: x - (w - width) / 2, y: y - (h - height) / 2, width: w, height: h }
     fitBounds(bounds.current, { duration: 400, padding: 0.12 })
+    fittedRun.current = runId
   }, [layout, runId, fitBounds])
 
   // Re-frame when the canvas changes size (side panels opening or closing, the
@@ -162,6 +173,33 @@ export function GraphView() {
     return () => cancelAnimationFrame(frame)
   }, [focusRequest, layout, getInternalNode, getZoom, setCenter])
 
+  // Activity: follow the card where something is happening, live and in replay.
+  // Re-centres when that card changes or the layout moves it, never otherwise, so
+  // panning around stays possible while nothing new happens.
+  const activeKey = useMemo(() => (activity && loaded ? activeCardKey(loaded.view, time) : null), [activity, loaded, time])
+  const view = useStore((s) => s.view)
+  useEffect(() => {
+    if (!activeKey || view !== 'graph') return
+    // A card another tab asked to show (a jump from Tools or Cost) wins for a moment.
+    const request = useStore.getState().focusRequest
+    if (request && Date.now() - request.at < FOCUS_WINDOW_MS) return
+    let frame = 0
+    let tries = 0
+    const follow = () => {
+      const node = getInternalNode(activeKey)
+      if (!node?.measured.width) {
+        if (tries++ < 30) frame = requestAnimationFrame(follow)
+        return
+      }
+      const zoom = Math.max(getZoom(), FOLLOW_MIN_ZOOM)
+      const { x, y } = node.internals.positionAbsolute
+      const { width = 0, height = 0 } = node.measured
+      setCenter(x + width / 2, y + height / 2, { zoom, duration: 500 })
+    }
+    frame = requestAnimationFrame(follow)
+    return () => cancelAnimationFrame(frame)
+  }, [activeKey, layout, view, getInternalNode, getZoom, setCenter])
+
   const { nodes, edges } = useMemo(() => {
     if (!graph || !layout) return { nodes: [] as Node[], edges: [] as Edge[] }
     const flowNodes: (StepFlowNode | GroupFlowNode)[] = []
@@ -186,7 +224,7 @@ export function GraphView() {
       const data = {
         node,
         hue,
-        highlighted: hoverKey === node.key,
+        highlighted: hoverKey === node.key || activeKey === node.key,
         selected: selectedKey === node.key,
         onToggle: () => toggleCollapsed(node.key),
       }
@@ -226,7 +264,7 @@ export function GraphView() {
       }
     })
     return { nodes: flowNodes as Node[], edges: flowEdges as Edge[] }
-  }, [graph, layout, hues, hoverKey, selectedKey, toggleCollapsed, toggleExpanded, theme, expanded, callsByNode, time])
+  }, [graph, layout, hues, hoverKey, activeKey, selectedKey, toggleCollapsed, toggleExpanded, theme, expanded, callsByNode, time])
 
   return (
     <div ref={container} className="h-full w-full">

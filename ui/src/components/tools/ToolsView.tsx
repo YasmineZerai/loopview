@@ -59,13 +59,13 @@ export function ToolsView() {
 
   const state = viewState(report, failed)
   return (
-    <div className="absolute inset-0 overflow-auto bg-canvas">
+    <div className="absolute inset-0 overflow-auto bg-canvas" style={{ '--tab': 'var(--color-view-tools)' } as React.CSSProperties}>
       <div className="mx-auto max-w-[1080px] px-6 pt-5 pb-24">
         <header className="flex flex-wrap items-end gap-x-4 gap-y-2">
           <div className="min-w-0 flex-1">
-            <div className="text-[11px] uppercase tracking-wider text-muted">Tools across runs</div>
+            <div className="view-ink text-[11px] font-medium uppercase tracking-wider">Tools across runs</div>
             <p className="mt-1 text-[15px] leading-snug">
-              {state === 'ready' || state === 'no-calls' ? summarySentence(report!) : ' '}
+              {state === 'ready' || state === 'no-calls' ? <Headline text={summarySentence(report!)} /> : ' '}
             </p>
           </div>
           {!STATIC_DEMO && (
@@ -97,6 +97,23 @@ export function ToolsView() {
         )}
       </div>
     </div>
+  )
+}
+
+/** The summary sentence, with its numbers in the view's accent. */
+function Headline({ text }: { text: string }) {
+  return (
+    <>
+      {text.split(/(\d[\d,]*%?)/).map((part, i) =>
+        i % 2 === 1 ? (
+          <span key={i} className="view-ink font-semibold">
+            {part}
+          </span>
+        ) : (
+          part
+        ),
+      )}
+    </>
   )
 }
 

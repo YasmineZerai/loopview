@@ -89,12 +89,12 @@ export function CostTree() {
   }
 
   return (
-    <div className="absolute inset-0 flex flex-col bg-canvas">
+    <div className="absolute inset-0 flex flex-col bg-canvas" style={{ '--tab': 'var(--color-view-cost)' } as React.CSSProperties}>
       <header className="flex shrink-0 flex-wrap items-end gap-x-4 gap-y-1 px-6 pt-5 pb-2">
         <div>
-          <div className="text-[11px] uppercase tracking-wider text-muted">Where the money goes</div>
+          <div className="view-ink text-[11px] font-medium uppercase tracking-wider">Where the money goes</div>
           <div className="flex items-baseline gap-3">
-            <span className="font-mono text-[30px] font-semibold tracking-tight">{unit === 'dollars' ? formatDollars(root.amount.dollars) : formatTokenCount(root.amount.tokens)}</span>
+            <span className="view-ink font-mono text-[30px] font-semibold tracking-tight">{unit === 'dollars' ? formatDollars(root.amount.dollars) : formatTokenCount(root.amount.tokens)}</span>
             <span className="font-mono text-[12px] text-muted">
               {unit === 'dollars' ? `${formatTokenCount(root.amount.tokens)} tokens` : formatDollars(root.amount.dollars)} · {summary.calls.length} model calls
             </span>

@@ -132,6 +132,45 @@
   box-shadow: inset 0 0 0 1px var(--color-seg-unattributed);
 }
 
+/* The three main views each have an accent: on their tab, their title and their
+   key numbers. Chrome only: data keeps its own colours (agents, segments, moves). */
+:root {
+  --color-view-graph: #4f46e5;
+  --color-view-cost: #059669;
+  --color-view-tools: #d97706;
+}
+:root[data-theme='dark'] {
+  --color-view-graph: #818cf8;
+  --color-view-cost: #34d399;
+  --color-view-tools: #fbbf24;
+}
+.view-tab {
+  color: var(--color-muted);
+  transition:
+    background 150ms var(--ease-out),
+    color 150ms var(--ease-out),
+    box-shadow 150ms var(--ease-out);
+}
+.view-tab .view-tab-icon {
+  color: var(--tab);
+  opacity: 0.75;
+}
+.view-tab:hover {
+  color: var(--color-text);
+}
+.view-tab.is-active {
+  color: color-mix(in srgb, var(--tab), var(--hue-ink-mix));
+  background: color-mix(in srgb, var(--tab) 13%, var(--color-surface));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tab) 35%, transparent);
+}
+.view-tab.is-active .view-tab-icon {
+  opacity: 1;
+}
+/* A view's title and headline numbers, in its accent. */
+.view-ink {
+  color: color-mix(in srgb, var(--tab), var(--hue-ink-mix));
+}
+
 /* The Tools tab: what an agent did after a tool error. Checked for contrast and
    colour-blind separation in each theme (DECISIONS D45). "Gave up" is hatched grey:
    it is the absence of a move, like "unattributed" in the cost view. */
