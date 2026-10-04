@@ -1,0 +1,22 @@
+# Read-only tasks for mcp_tools_study.py, one per line. Lines starting with # are skipped.
+# Every task only reads public repositories: no issues, comments, branches or PRs are created.
+What is the description of the repository github/github-mcp-server, and how many stars does it have?
+List the five most recently opened issues in pydantic/pydantic-ai, with their titles.
+Show me the README of modelcontextprotocol/python-sdk and summarise it in three bullet points.
+Who are the top three contributors to astral-sh/uv?
+What is the latest release of fastapi/fastapi, and when was it published?
+Find the file that defines the MCPToolset class in pydantic/pydantic-ai and tell me its path.
+Search the code of open-telemetry/opentelemetry-python for where BatchSpanProcessor is defined.
+Is there an open issue in modelcontextprotocol/python-sdk about stdio transport on Windows? Give its number and title.
+What are the open pull requests in github/github-mcp-server labelled as documentation?
+Read pyproject.toml in astral-sh/uv and tell me which Python versions it supports.
+In fastapi/fastapi, find the most commented open issue and summarise the discussion.
+What changed in the most recently merged pull request in pydantic/pydantic-ai? List the files it touched.
+Compare the number of open issues in fastapi/fastapi and pydantic/pydantic-ai.
+Find which branch is the default branch of open-telemetry/semantic-conventions-genai and its latest commit message.
+In github/github-mcp-server, which tool lets an agent read a file's contents? Find where it is implemented.
+Find a recent pull request in astral-sh/uv that fixed a bug on Windows and explain the fix.
+Look at the CONTRIBUTING file of modelcontextprotocol/python-sdk and list the checks a contributor must run.
+Which issues in pydantic/pydantic-ai mention OpenTelemetry and are still open? Give up to five.
+For the last three commits on the main branch of fastapi/fastapi, give the author and the first line of the message.
+In open-telemetry/opentelemetry-python, find the code that reads OTEL_EXPORTER_OTLP_TRACES_ENDPOINT and explain the default value.
