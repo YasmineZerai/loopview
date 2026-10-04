@@ -104,17 +104,28 @@ To watch your own agent, start it without `demo`:
 uv run loopview      # UI and OTLP endpoint on http://127.0.0.1:4318
 ```
 
-and point your agent's exporter at it (next section). Once published to PyPI, this becomes `uvx loopview`.
+then connect your agent with one line (next section). Once published to PyPI, this becomes `uvx loopview`.
 
 ## Connect your agent
 
 loopview receives standard OpenTelemetry traces at **`http://127.0.0.1:4318/v1/traces`** (OTLP over HTTP), from any framework and any language. For Python agents, one call sets everything up.
 
-**1. Install the SDK** next to your agent's framework and its OpenTelemetry instrumentation (see the table below):
+**1. Install the SDK**, in your agent's environment:
 
 ```sh
 pip install "loopview-sdk @ git+https://github.com/YasmineZerai/loopview#subdirectory=sdk"
 ```
+
+and the instrumentation package for what your agent is built with: the piece that records what the framework does.
+
+| Your agent uses | Also install |
+|---|---|
+| Pydantic AI | nothing |
+| LangGraph / LangChain | `openinference-instrumentation-langchain` |
+| CrewAI | `openinference-instrumentation-crewai`, plus the one for your model provider (for Claude: `opentelemetry-instrumentation-anthropic`) |
+| OpenAI Agents SDK | `openinference-instrumentation-openai-agents` |
+| The OpenAI SDK directly | `openinference-instrumentation-openai` |
+| The Anthropic SDK directly | `openinference-instrumentation-anthropic` |
 
 **2. Connect, once, at the start of your program** (before your agents or model clients are created):
 
@@ -125,36 +136,48 @@ loopview_sdk.connect()
 
 `connect()` sends traces to loopview, switches on the instrumentation of every agent framework and model SDK it finds installed, turns on message content capture, and flushes at exit so short scripts don't lose their last spans. It prints what it instrumented, and anything it couldn't with the reason.
 
-**3. If you wrote the agent loop yourself** on a model SDK, wrap it, so the whole task is one run:
+That's all for a framework. Run your agent: it appears in loopview as it runs.
+
+**3. If you wrote the agent loop yourself** on the OpenAI or Anthropic SDK, wrap the loop so the whole task is one run:
 
 ```python
-with loopview_sdk.agent("my_agent"):
-    ...  # your loop
+import anthropic
+import loopview_sdk
+
+loopview_sdk.connect()
+
+@loopview_sdk.tool                      # optional: exact timing and errors
+def get_weather(city: str) -> dict:
+    ...
+
+with loopview_sdk.agent("weather_assistant"):
+    client = anthropic.Anthropic()
+    ...  # your loop: call the model, run the tools it asks for, repeat
 ```
 
-Your tool calls are then rebuilt from the conversation (the model asks for a tool, the next call carries its result). For exact timing and errors, decorate your tools (all of them, or none):
+Without `@loopview_sdk.tool`, your tool calls are rebuilt from the conversation (the model asks for a tool, the next call carries its result). If you decorate tools, decorate all of them, or none.
 
-```python
-@loopview_sdk.tool
-def get_weather(city: str) -> dict: ...
-```
+**loopview elsewhere?** `loopview_sdk.connect(url="http://host:4318")`, or set `LOOPVIEW_URL`. The default is `http://127.0.0.1:4318`.
 
 ### What works, with what
 
-Every row is a real recording of the same task, two turns of tool calls with one failing tool, checked by the tests ([`examples/compat/`](examples/compat/), [`fixtures/`](fixtures/)).
+Each of these was recorded for real on the same task (two turns of tool calls, one failing tool) and is checked by the tests: [`examples/compat/`](examples/compat/), [`fixtures/`](fixtures/).
 
-| Agent built with | Install, next to `loopview-sdk` | Graph | Cost | Tools tab |
-|---|---|---|---|---|
-| **Pydantic AI** (including MCP servers) | nothing else | agents, model/tools loops, sub-agents | yes | yes |
-| **LangGraph / LangChain** | `openinference-instrumentation-langchain` | graph nodes, routing, loops, subgraphs | yes | yes |
-| **OpenAI Agents SDK** | `openinference-instrumentation-openai-agents` | agent and turns | yes | yes, except unused tools (no tool list recorded) |
-| **CrewAI** | `openinference-instrumentation-crewai` and the model SDK's instrumentation (below) | crew, agent, model/tools loop | yes | yes |
-| **OpenAI SDK**, your own loop | `openinference-instrumentation-openai` (or `opentelemetry-instrumentation-openai-v2`) + `agent()` | model/tools loop | yes | yes; errors not marked (the OpenAI API has no error flag) |
-| **Anthropic SDK**, your own loop | `openinference-instrumentation-anthropic` (or `opentelemetry-instrumentation-anthropic`) + `agent()` | model/tools loop | yes | yes; errors marked with OpenInference's instrumentor |
-| **Your own spans** | nothing else: `invoke_agent`, `chat`, `execute_tool` spans with the [GenAI conventions](https://github.com/open-telemetry/semantic-conventions-genai) | as you record them | yes | yes |
-| **Any other framework** with an OpenInference or OpenTelemetry instrumentation | its instrumentation package | not recorded yet: expect model calls, cost and tools; structure depends on the framework | | |
+| Agent built with | Graph | Cost | Tools tab |
+|---|---|---|---|
+| **Pydantic AI** (including MCP servers) | agents, model/tools loops, sub-agents | yes | yes |
+| **LangGraph / LangChain** | graph nodes, routing, loops, subgraphs | yes | yes |
+| **CrewAI** | crew, agent, model/tools loop | yes | yes |
+| **OpenAI Agents SDK** | agent and its turns | yes | yes, except unused tools (it doesn't record the tool list) |
+| **Your own loop, OpenAI SDK** (with `agent()`) | model/tools loop | yes | yes; failed tools marked only with `@loopview_sdk.tool` (the OpenAI API has no error flag) |
+| **Your own loop, Anthropic SDK** (with `agent()`) | model/tools loop | yes | yes; failed tools marked with OpenInference's instrumentation or `@loopview_sdk.tool` |
+| **Your own spans** following the [GenAI conventions](https://github.com/open-telemetry/semantic-conventions-genai) (`invoke_agent`, `chat`, `execute_tool`) | as you record them | yes | yes |
 
-Without `agent()`, a hand-written loop still shows, but every model call is a run of its own. Tool errors in a rebuilt call show only when the result was flagged as one; [`@loopview_sdk.tool`](sdk/README.md) records them exactly. Other languages: point any OTLP/HTTP exporter at the endpoint above; nothing else is needed.
+**Not recorded yet:** LlamaIndex, smolagents, AutoGen, Google ADK and other frameworks with an OpenInference or OpenTelemetry instrumentation. `connect()` switches their instrumentation on; expect model calls, cost and tools, with a structure that depends on the framework.
+
+**Other languages:** point any OpenTelemetry exporter (OTLP over HTTP) at `http://127.0.0.1:4318/v1/traces`. `connect()`, `agent()` and `@tool` are Python only.
+
+Without `agent()`, a hand-written loop still shows, but every model call is a run of its own. Costs are in dollars for Anthropic and OpenAI models (others in tokens, or [add prices](#using-it)).
 
 <details>
 <summary><b>Without the SDK</b></summary>
@@ -187,6 +210,7 @@ Turn on message content where your instrumentation leaves it off. For OpenTeleme
 - `connect()` prints what it instrumented. If your framework isn't listed, install its instrumentation package.
 - The endpoint must end in `/v1/traces`, and the exporter must be the **HTTP** one (`...otlp.proto.http...`), not gRPC.
 - Connect before your agents or model clients are created.
+- loopview on another port or machine: `connect(url=...)` or `LOOPVIEW_URL`.
 - The top right of loopview should say "connected".
 </details>
 
