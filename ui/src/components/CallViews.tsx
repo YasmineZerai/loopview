@@ -85,6 +85,18 @@ function Thinking({ text }: { text: string }) {
   )
 }
 
+/** A tool call no span recorded, rebuilt from the conversation (server: derived_tools.py). */
+export function RebuiltNote() {
+  return (
+    <div
+      className="pl-4.5 font-sans text-[10.5px] text-muted"
+      title="No span recorded this tool call. loopview rebuilt it from the conversation: the model asked for it, and the next model call carried its result. Its timing is approximate, and an error shows only if the result was flagged as one. Decorate the tool with @loopview_sdk.tool to record it exactly."
+    >
+      rebuilt from the conversation
+    </div>
+  )
+}
+
 function ToolEntry({ step, running }: { step: Step; running: boolean }) {
   const [open, setOpen] = useState(false)
   const tool = step.tool
@@ -98,6 +110,7 @@ function ToolEntry({ step, running }: { step: Step; running: boolean }) {
           <LongText text={args(tool?.arguments)} className="text-muted" wrap />
         </span>
       </div>
+      {step.synthetic && <RebuiltNote />}
       {running ? (
         <div className="animate-pulse pl-4.5 text-muted">running…</div>
       ) : failed ? (

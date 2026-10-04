@@ -6,6 +6,7 @@ import { formatDuration } from '../../theme'
 import type { Step } from '../../types'
 import { StatusMark } from '../StatusMark'
 import { Chevron, Cross, Sparkle, Wrench } from '../icons'
+import { RebuiltNote } from '../CallViews'
 import { Conversation } from './Conversation'
 import { JsonBlock } from './JsonView'
 
@@ -114,6 +115,7 @@ function ToolCallView({ step, highlighted = false }: { step: Step; highlighted?:
         </span>
       </div>
       <div className="space-y-2">
+        {step.synthetic && <RebuiltNote />}
         {step.error && <ErrorBox message={step.error} />}
         {tool?.arguments != null && <JsonBlock label="arguments" value={tool.arguments} open />}
         {tool?.result != null && <JsonBlock label="result" value={tool.result} />}
