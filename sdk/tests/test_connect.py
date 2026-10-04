@@ -10,14 +10,14 @@ from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTrace
 from opentelemetry.sdk.trace import TracerProvider
 
 import loopview_sdk
-from loopview_sdk import choose_instrumentors
+from loopview_sdk import rank_instrumentors
 
 
 def ep(name: str, dist: str) -> Any:
     return SimpleNamespace(name=name, dist=SimpleNamespace(name=dist))
 
 
-def test_one_instrumentor_per_library_openinference_first() -> None:
+def test_instrumentors_ranked_per_library_openinference_first() -> None:
     points = [
         ep("openai", "opentelemetry-instrumentation-openai-v2"),
         ep("openai", "openinference-instrumentation-openai"),
@@ -25,14 +25,14 @@ def test_one_instrumentor_per_library_openinference_first() -> None:
         ep("requests", "opentelemetry-instrumentation-requests"),  # not a GenAI library
         ep("smolagents", "openinference-instrumentation-smolagents"),
     ]
-    chosen = {e.name: e.dist.name for e in choose_instrumentors(points)}
-    assert chosen == {
-        "openai": "openinference-instrumentation-openai",
-        "anthropic": "opentelemetry-instrumentation-anthropic",  # the only one there
-        "smolagents": "openinference-instrumentation-smolagents",
+    ranked = {lib: [e.dist.name for e in eps] for lib, eps in rank_instrumentors(points).items()}
+    assert ranked == {
+        # OpenInference first; the other is the fallback for library versions it can't do.
+        "openai": ["openinference-instrumentation-openai", "opentelemetry-instrumentation-openai-v2"],
+        "anthropic": ["opentelemetry-instrumentation-anthropic"],
+        "smolagents": ["openinference-instrumentation-smolagents"],
     }
-    only = choose_instrumentors(points, only=["anthropic"])
-    assert [e.name for e in only] == ["anthropic"]
+    assert list(rank_instrumentors(points, only=["anthropic"])) == ["anthropic"]
 
 
 def test_connect_and_agent_send_spans_to_loopview() -> None:
@@ -61,7 +61,8 @@ def test_connect_and_agent_send_spans_to_loopview() -> None:
         with trace.get_tracer("test").start_as_current_span("chat model"):
             pass
     provider.force_flush()
-    server.shutdown()
+    # The server keeps running: the exporter stays on the global provider, and later
+    # tests' spans would otherwise fail to send (noise, not errors).
 
     spans = []
     for body in received.get("/v1/traces", []):

@@ -1225,14 +1225,18 @@ requires-dist = [
 
 [[package]]
 name = "loopview-sdk"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "../sdk" }
 dependencies = [
+    { name = "opentelemetry-exporter-otlp-proto-http" },
     { name = "opentelemetry-sdk" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "opentelemetry-sdk", specifier = ">=1.20" }]
+requires-dist = [
+    { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.20" },
+    { name = "opentelemetry-sdk", specifier = ">=1.20" },
+]
 
 [package.metadata.requires-dev]
 dev = [{ name = "pytest", specifier = ">=8" }]

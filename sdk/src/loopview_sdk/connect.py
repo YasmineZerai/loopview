@@ -9,22 +9,29 @@ It does what every agent needs, so nothing else is required in most cases:
 - the instrumentation of every agent framework or model SDK that is installed:
   each OpenTelemetry instrumentor package registers itself (the
   `opentelemetry_instrumentor` entry point), so they are found, not listed here.
-  When two cover the same library (OpenInference's and OpenTelemetry's for the
-  OpenAI SDK), OpenInference's is used: it records message content and tool
-  definitions. Pydantic AI instruments itself and is turned on directly;
+  When several cover the same library (OpenInference's and OpenTelemetry's for
+  the OpenAI SDK), OpenInference's is tried first: it records message content and
+  tool definitions. If it doesn't support the installed version of the library,
+  the next one is used, and a library none fits is reported. Pydantic AI
+  instruments itself and is turned on directly;
 - message content capture, which some instrumentations leave off by default;
 - a flush at exit, so a short script doesn't lose its last spans.
 
 A hand-written loop on a model SDK has no span around it: each model call would be
 a run of its own. Wrap the loop in `loopview_sdk.agent("name")` to make it one run.
+Its tool calls are rebuilt from the conversation by loopview; decorate the tools
+with `@loopview_sdk.tool` for exact timing and errors (all of them, or none).
 """
 
 import atexit
+import functools
+import inspect
+import json
 import os
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from importlib.metadata import EntryPoint, entry_points
-from typing import Any
+from typing import Any, TypeVar, overload
 
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
@@ -92,10 +99,12 @@ def connect(
     # Short scripts can end before the exporter's next batch: flush at exit.
     atexit.register(provider.shutdown if owned else provider.force_flush)
 
-    instrumented = _instrument(provider, instrument) if instrument else []
+    instrumented, skipped = _instrument(provider, instrument) if instrument else ([], [])
     if not quiet:
         found = ", ".join(instrumented) or "nothing (no supported framework installed)"
         print(f"loopview: sending traces to {base}; instrumented {found}")
+        for item in skipped:
+            print(f"loopview: could not instrument {item}")
     return provider
 
 
@@ -114,6 +123,78 @@ def agent(name: str, **attributes: Any) -> Iterator[trace.Span]:
         attributes={"gen_ai.operation.name": "invoke_agent", "gen_ai.agent.name": name, **attributes},
     ) as span:
         yield span
+
+
+F = TypeVar("F", bound=Callable[..., Any])
+
+
+@overload
+def tool(fn: F) -> F: ...
+@overload
+def tool(*, name: str | None = None) -> Callable[[F], F]: ...
+
+
+def tool(fn: Callable[..., Any] | None = None, *, name: str | None = None) -> Any:
+    """Record each call of a tool function: arguments, result, and errors.
+
+        @loopview_sdk.tool
+        def get_weather(city: str) -> dict: ...
+
+    Works on async functions too. An exception marks the call as failed and is
+    raised again unchanged. Optional: without it, loopview rebuilds tool calls
+    from the conversation, with approximate timing and fewer errors.
+    """
+
+    def decorate(f: Callable[..., Any]) -> Callable[..., Any]:
+        tool_name = name or f.__name__
+        signature = inspect.signature(f)
+
+        def start(args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+            try:
+                bound = signature.bind(*args, **kwargs)
+                arguments = _json(dict(bound.arguments))
+            except TypeError:
+                arguments = _json({"args": list(args), **kwargs})
+            return trace.get_tracer("loopview_sdk").start_as_current_span(
+                f"execute_tool {tool_name}",
+                attributes={
+                    "gen_ai.operation.name": "execute_tool",
+                    "gen_ai.tool.name": tool_name,
+                    "gen_ai.tool.type": "function",
+                    "gen_ai.tool.call.arguments": arguments,
+                },
+                record_exception=True,
+                set_status_on_exception=True,
+            )
+
+        if inspect.iscoroutinefunction(f):
+
+            @functools.wraps(f)
+            async def run_async(*args: Any, **kwargs: Any) -> Any:
+                with start(args, kwargs) as span:
+                    result = await f(*args, **kwargs)
+                    span.set_attribute("gen_ai.tool.call.result", _json(result))
+                    return result
+
+            return run_async
+
+        @functools.wraps(f)
+        def run(*args: Any, **kwargs: Any) -> Any:
+            with start(args, kwargs) as span:
+                result = f(*args, **kwargs)
+                span.set_attribute("gen_ai.tool.call.result", _json(result))
+                return result
+
+        return run
+
+    return decorate(fn) if fn is not None else decorate
+
+
+def _json(value: Any) -> str:
+    try:
+        return json.dumps(value, default=str)
+    except (TypeError, ValueError):
+        return str(value)
 
 
 # --- helpers -------------------------------------------------------------------------------
@@ -139,40 +220,59 @@ def _script_name() -> str:
     return os.path.splitext(os.path.basename(path))[0] if path else "agent"
 
 
-def choose_instrumentors(points: Sequence[EntryPoint], only: Sequence[str] | None = None) -> list[EntryPoint]:
-    """One instrumentor per library, OpenInference's first; GenAI libraries only."""
-    chosen: dict[str, EntryPoint] = {}
+def rank_instrumentors(
+    points: Sequence[EntryPoint], only: Sequence[str] | None = None
+) -> dict[str, list[EntryPoint]]:
+    """The instrumentors for each GenAI library, best first: OpenInference's (it
+    records content and tool definitions), then the others in the order found."""
+    ranked: dict[str, list[EntryPoint]] = {}
     for ep in points:
-        dist = ep.dist.name if ep.dist else ""
-        openinference = dist.startswith("openinference-instrumentation-")
-        if not openinference and ep.name not in GENAI_NAMES:
+        if not _is_genai(ep) or (only is not None and ep.name not in only):
             continue
-        if only is not None and ep.name not in only:
-            continue
-        current = chosen.get(ep.name)
-        current_is_oi = bool(current and current.dist and current.dist.name.startswith("openinference-"))
-        if current is None or (openinference and not current_is_oi):
-            chosen[ep.name] = ep
-    return list(chosen.values())
+        ranked.setdefault(ep.name, []).append(ep)
+    for candidates in ranked.values():
+        candidates.sort(key=lambda ep: not _is_openinference(ep))  # stable
+    return ranked
 
 
-def _instrument(provider: TracerProvider, which: bool | Sequence[str]) -> list[str]:
+def _is_openinference(ep: EntryPoint) -> bool:
+    return bool(ep.dist and ep.dist.name.startswith("openinference-instrumentation-"))
+
+
+def _is_genai(ep: EntryPoint) -> bool:
+    return _is_openinference(ep) or ep.name in GENAI_NAMES
+
+
+def _instrument(provider: TracerProvider, which: bool | Sequence[str]) -> tuple[list[str], list[str]]:
+    """Instrument every installed GenAI library. Returns (instrumented, skipped), the
+    skipped ones with the reason: no instrumentor fits the installed version."""
     only = None if which is True else list(which)  # type: ignore[arg-type]
     done: list[str] = []
-    for ep in choose_instrumentors(list(entry_points(group="opentelemetry_instrumentor")), only):
-        try:
-            instrumentor = ep.load()()
-            # The instrumentor's own check: is the library it instruments installed?
-            if instrumentor._check_dependency_conflicts() is not None:
-                continue
-            if not getattr(instrumentor, "is_instrumented_by_opentelemetry", False):
-                instrumentor.instrument(tracer_provider=provider)
-            done.append(ep.name)
-        except Exception:  # a broken instrumentor must never stop the agent
-            continue
+    skipped: list[str] = []
+    ranked = rank_instrumentors(list(entry_points(group="opentelemetry_instrumentor")), only)
+    for library, candidates in ranked.items():
+        reasons = []
+        for ep in candidates:
+            try:
+                instrumentor = ep.load()()
+                # The instrumentor's own check: is a version it supports installed?
+                conflict = instrumentor._check_dependency_conflicts()
+                if conflict is not None:
+                    if getattr(conflict, "found", None):  # installed, wrong version
+                        reasons.append(f"{ep.dist.name if ep.dist else ep.name}: {conflict}")
+                    continue
+                if not getattr(instrumentor, "is_instrumented_by_opentelemetry", False):
+                    instrumentor.instrument(tracer_provider=provider)
+                done.append(library if _is_openinference(ep) else f"{library} ({ep.dist.name if ep.dist else ep.value})")
+                break
+            except Exception as exc:  # a broken instrumentor must never stop the agent
+                reasons.append(f"{ep.dist.name if ep.dist else ep.name}: {exc}")
+        else:
+            if reasons:
+                skipped.append(f"{library} ({'; '.join(reasons)})")
     if (only is None or "pydantic_ai" in only) and _instrument_pydantic_ai(provider):
         done.append("pydantic_ai")
-    return done
+    return done, skipped
 
 
 def _instrument_pydantic_ai(provider: TracerProvider) -> bool:
