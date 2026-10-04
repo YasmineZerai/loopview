@@ -117,6 +117,9 @@ class Step(BaseModel):
     # True when we only know this step exists because its children arrived:
     # exporters send a span when it ends, so a running step has no span yet.
     inferred: bool = False
+    # True for steps no span stands for: the `model` and `tools` nodes added to a
+    # flat agent loop (normalize/loop_nodes.py).
+    synthetic: bool = False
     hidden: bool = False  # internal plumbing (routing functions, parsers); kept, not drawn
     start_ns: int
     end_ns: int | None  # None while running
