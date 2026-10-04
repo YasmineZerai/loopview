@@ -9,11 +9,13 @@ The UI only ever receives the normalized schema (normalize/schema.py), never
 raw spans; /api/runs/{id}/spans exists for debugging.
 """
 
+import inspect
 import json
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, StreamingResponse
@@ -37,6 +39,7 @@ from loopview.live import LiveHub, running
 from loopview.normalize.schema import NormalizedRun, RunInfo
 from loopview.store.capture import CapturedRequest, CaptureWriter, from_line, load_capture, to_line
 from loopview.store.memory import SessionSummary, TraceStore
+from loopview.tools.report import tools_report
 
 # The UI build (vite) writes its output here. It is generated, not committed.
 STATIC_DIR = Path(__file__).parent / "static"
@@ -49,6 +52,17 @@ _MISSING_UI_PAGE = """<!doctype html>
 <h1>loopview is running</h1>
 <p>The UI has not been built. Run <code>npm run build</code> in <code>ui/</code>.</p>
 </body></html>"""
+
+
+# Recent FastAPI versions trace themselves and, on startup, export to the OTLP
+# endpoint in OTEL_* variables: the very ones users set to point their agents at
+# loopview. loopview would then trace every request it receives and send the spans
+# to itself, a loop without end. Older versions have no such option.
+_NO_SELF_TELEMETRY = (
+    {"telemetry": {"tracing": False, "metrics": False, "logs": False, "auto_configure": False}}
+    if "telemetry" in inspect.signature(FastAPI.__init__).parameters
+    else {}
+)
 
 
 def create_app(
@@ -66,7 +80,7 @@ def create_app(
         async with running(hub):
             yield
 
-    app = FastAPI(title="loopview", version=__version__, lifespan=lifespan)
+    app = FastAPI(title="loopview", version=__version__, lifespan=lifespan, **_NO_SELF_TELEMETRY)
     app.state.store = store
     app.state.hub = hub
 
@@ -135,6 +149,25 @@ def create_app(
     @app.get("/api/sessions")
     def list_sessions() -> list[SessionSummary]:
         return store.sessions()
+
+    @app.get("/api/tools")
+    def tools(session: str | None = None, runs: str | None = None) -> dict[str, Any]:
+        """The Tools tab: how tools behave across runs. All runs by default, or one
+        session's (`?session=id`), or a list (`?runs=id1,id2`). Recomputed on
+        every request, which is cheap at a few hundred runs."""
+        if runs:
+            trace_ids = [t for t in runs.split(",") if t]
+        elif session:
+            match = [s for s in store.sessions() if s.session_id == session]
+            if not match:
+                raise HTTPException(404, "session not found")
+            trace_ids = match[0].trace_ids
+        else:
+            trace_ids = [run.trace_id for run in store.runs()]
+        normalized = [n for n in (hub.get(t) for t in trace_ids) if n is not None]
+        if runs and not normalized:
+            raise HTTPException(404, "none of these runs were found")
+        return tools_report(normalized)
 
     @app.get("/api/events")
     async def events() -> StreamingResponse:
