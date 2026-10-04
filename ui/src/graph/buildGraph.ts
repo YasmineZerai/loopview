@@ -44,6 +44,7 @@ export interface GraphNode {
   tokens: number
   tools: ToolSatellite[]
   collapsed?: boolean // a group drawn as a single card
+  synthetic: boolean // a model or tools node no span stands for (see loop_nodes.py)
 }
 
 export interface GraphEdge {
@@ -96,6 +97,7 @@ export function buildGraph(run: NormalizedRun, time: number = LIVE): Graph {
         modelCalls: 0,
         tokens: 0,
         tools: [],
+        synthetic: !!step.synthetic,
       }
       nodes.set(step.key, node)
     }
@@ -192,8 +194,11 @@ export function buildGraph(run: NormalizedRun, time: number = LIVE): Graph {
 // hue, or the hue of the agent group a node sits in. Every agent gets a distinct
 // colour, and a node shares it with the agent it belongs to.
 function agentForColour(node: GraphNode, nodes: Map<string, GraphNode>): string | null {
-  if (node.kind === 'agent') return node.key
-  return node.groupKey && nodes.has(node.groupKey) ? node.groupKey : null
+  // A synthetic tools group (it holds sub-agents) is part of its agent's loop.
+  if (node.kind === 'agent' && !node.synthetic) return node.key
+  const group = node.groupKey ? nodes.get(node.groupKey) : undefined
+  if (!group) return null
+  return group.synthetic ? agentForColour(group, nodes) : group.key
 }
 
 /** Timestamps where something happens, for stepping through a replay. */

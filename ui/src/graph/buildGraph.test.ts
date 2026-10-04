@@ -73,16 +73,34 @@ describe('buildGraph', () => {
 
   it('does not draw delegate and return edges (containment shows them)', () => {
     const g = buildGraph(multiAgent)
-    expect(g.edges.map((e) => e.kind)).toEqual(['handoff'])
-    expect(node(g, 'laptop_advice/coordinator/specs_researcher').groupKey).toBe('laptop_advice/coordinator')
+    expect(g.edges.some((e) => e.kind === 'delegate' || e.kind === 'return')).toBe(false)
+    expect(g.edges.filter((e) => e.kind === 'handoff').map((e) => e.id)).toEqual(['laptop_advice/coordinator->laptop_advice/writer'])
+    // The researchers run inside the coordinator's tools step, drawn as a group.
+    expect(node(g, 'laptop_advice/coordinator/tools/specs_researcher').groupKey).toBe('laptop_advice/coordinator/tools')
   })
 
-  it('shows a single agent as one node with its tools', () => {
+  it('colours a tools group like its agent, not as an agent of its own', () => {
+    const g = buildGraph(multiAgent)
+    const tools = node(g, 'laptop_advice/coordinator/tools')
+    expect(tools.kind).toBe('agent')
+    expect(tools.synthetic).toBe(true)
+    expect(tools.agentKey).toBe('laptop_advice/coordinator')
+    expect(node(g, 'laptop_advice/coordinator/tools/specs_researcher').agentKey).toBe('laptop_advice/coordinator/tools/specs_researcher')
+  })
+
+  it('shows a single agent as its loop: a model node and a tools node', () => {
     const g = buildGraph(react)
-    expect(g.nodes).toHaveLength(1)
-    expect(g.nodes[0].tools.map((t) => t.name).sort()).toEqual(['calculator', 'convert_currency', 'hotel_price'])
+    expect(g.nodes.map((n) => n.key).sort()).toEqual(['trip_budget_agent', 'trip_budget_agent/model', 'trip_budget_agent/tools'])
+    const model = node(g, 'trip_budget_agent/model')
+    const tools = node(g, 'trip_budget_agent/tools')
     const modelCalls = react.steps.filter((s) => s.kind === 'model_call' && !s.hidden).length
-    expect(g.nodes[0].modelCalls).toBe(modelCalls)
+    expect(model.modelCalls).toBe(modelCalls)
+    expect(model.runCount).toBe(modelCalls)
+    expect(tools.tools.map((t) => t.name).sort()).toEqual(['calculator', 'convert_currency', 'hotel_price'])
+    expect(g.edges.map((e) => `${e.kind} ${e.id}`).sort()).toEqual([
+      'loop trip_budget_agent/tools->trip_budget_agent/model',
+      'sequence trip_budget_agent/model->trip_budget_agent/tools',
+    ])
   })
 })
 

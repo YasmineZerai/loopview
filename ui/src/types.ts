@@ -98,6 +98,7 @@ export interface Step {
   key: string
   status: StepStatus
   inferred: boolean
+  synthetic?: boolean // a model or tools node added to a flat agent loop (server: loop_nodes.py)
   hidden: boolean
   start_ns: number
   end_ns: number | null
