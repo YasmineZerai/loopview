@@ -18,6 +18,13 @@ The usual transition rule then draws model -> tools -> model, with a loop counte
 A flow step started by a tool (a sub-agent run by `gather_facts`) moves inside
 that turn's `tools` step, which then becomes a group. Agents without direct tool
 calls are left alone: with only model calls there is no loop to show.
+
+Two more cases from hand-written loops:
+- calls with no flow step around them at all (a model SDK instrumented, nothing
+  wrapping the loop) get a synthetic agent, named after the service, so the run
+  has something to draw;
+- a plain step that isn't an agent (a generic span such as `main`, or a chain)
+  holding both model and tool calls directly is treated as the agent of its loop.
 """
 
 from loopview.normalize.schema import FLOW_KINDS, Step, StepStatus
@@ -25,13 +32,23 @@ from loopview.normalize.schema import FLOW_KINDS, Step, StepStatus
 CALL_KINDS = ("model_call", "tool_call")
 
 
-def add_loop_nodes(steps: list[Step]) -> list[Step]:
+def add_loop_nodes(steps: list[Step], root_name: str = "agent") -> list[Step]:
+    steps = _wrap_unowned_calls(steps, root_name)
     by_id = {s.id: s for s in steps}
-    direct: dict[str, list[Step]] = {}  # agent id -> its visible direct calls
+    direct: dict[str, list[Step]] = {}  # owner id -> its visible direct calls
     for s in steps:
         owner = by_id.get(s.scope_id) if s.scope_id else None
-        if owner and owner.kind == "agent" and not s.hidden and s.kind in CALL_KINDS:
+        if owner and not s.hidden and s.kind in CALL_KINDS:
             direct.setdefault(owner.id, []).append(s)
+    for owner_id in list(direct):
+        owner = by_id[owner_id]
+        models = sum(1 for c in direct[owner_id] if c.kind == "model_call")
+        tools = len(direct[owner_id]) - models
+        # An agent's loop, or another step running a whole loop by itself: several
+        # model calls and tools. One model call and its tools is a single turn
+        # (the OpenAI Agents SDK's `turn` nodes), already drawn as a step.
+        if owner.kind != "agent" and not (models >= 2 and tools >= 1):
+            del direct[owner_id]
 
     added: list[Step] = []
     new_scope: dict[str, str] = {}  # call id -> the synthetic step that now holds it
@@ -39,6 +56,8 @@ def add_loop_nodes(steps: list[Step]) -> list[Step]:
         if not any(c.kind == "tool_call" for c in calls):
             continue
         agent = by_id[agent_id]
+        if agent.kind != "agent":
+            agent.kind = "agent"  # it holds its loop's nodes now: a group
         models = sorted((c for c in calls if c.kind == "model_call"), key=_order)
         for m in models:
             step = _synthetic(agent, f"{m.id}~model", "model", [m])
@@ -55,6 +74,8 @@ def add_loop_nodes(steps: list[Step]) -> list[Step]:
                 new_scope[t.id] = step.id
 
     if not added:
+        if any(not s.key for s in steps):
+            _rekey(steps, by_id)  # tool calls rebuilt from messages have no key yet
         return steps
     all_steps = steps + added
     by_id.update({s.id: s for s in added})
@@ -78,6 +99,35 @@ def add_loop_nodes(steps: list[Step]) -> list[Step]:
     _rekey(all_steps, by_id)
     all_steps.sort(key=_order)
     return all_steps
+
+
+def _wrap_unowned_calls(steps: list[Step], root_name: str) -> list[Step]:
+    """Model and tool calls with no flow step around them get a synthetic agent."""
+    unowned = [s for s in steps if s.kind in CALL_KINDS and not s.hidden and s.scope_id is None]
+    if not unowned:
+        return steps
+    first = min(unowned, key=_order)
+    running = any(s.end_ns is None for s in unowned)
+    root = Step(
+        id=f"{first.run_id}~agent",
+        run_id=first.run_id,
+        parent_id=None,
+        scope_id=None,
+        kind="agent",
+        type_label="agent",
+        name=root_name,
+        key="",
+        status="running" if running else "ok",
+        start_ns=first.start_ns,
+        end_ns=None if running else max(s.end_ns or 0 for s in unowned),
+        convention=first.convention,
+        synthetic=True,
+    )
+    for s in unowned:
+        s.scope_id = root.id
+        if s.parent_id is None:
+            s.parent_id = root.id
+    return [root, *steps]
 
 
 def _order(s: Step) -> tuple[int, str]:

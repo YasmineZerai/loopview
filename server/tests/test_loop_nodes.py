@@ -103,3 +103,32 @@ def test_a_sub_agent_run_by_a_tool_moves_into_the_tools_group() -> None:
     assert sub.scope_id == tools.id and sub.key == "agent/tools/researcher"
     assert inner.scope_id == "sub"  # the sub-agent's own calls stay with it
     assert inner.key == "agent/tools/researcher/model_call:model_call"
+
+
+def test_a_plain_parent_running_a_whole_loop_is_treated_as_its_agent() -> None:
+    main = step("a", "unknown", 0, 100, scope=None, name="main")  # a generic span
+    steps = add_loop_nodes(
+        [
+            main,
+            step("m1", "model_call", 0, 10),
+            tool("t1", 10, 12),
+            step("m2", "model_call", 12, 20),
+        ]
+    )
+    assert main.kind == "agent"  # a group now, holding its loop
+    assert sorted(s.name for s in steps if s.synthetic) == ["model", "model", "tools"]
+
+
+def test_a_single_turn_is_not_a_loop() -> None:
+    """The OpenAI Agents SDK records each turn as a node: one model call, its tools."""
+    turn = step("a", "node", 0, 100, scope=None, name="turn")
+    steps = [turn, step("m1", "model_call", 0, 10), tool("t1", 10, 12)]
+    assert add_loop_nodes(list(steps)) == steps and turn.kind == "node"
+
+
+def test_calls_with_nothing_around_them_get_an_agent() -> None:
+    orphan = step("m1", "model_call", 0, 10, scope=None)
+    steps = add_loop_nodes([orphan], root_name="my-service")
+    [root] = [s for s in steps if s.kind == "agent"]
+    assert root.synthetic and root.name == "my-service" and orphan.scope_id == root.id
+    assert orphan.key == "my-service/model_call:model_call"

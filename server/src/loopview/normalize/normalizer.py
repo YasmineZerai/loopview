@@ -13,8 +13,9 @@ Passes:
    model or tool calls);
 4. link each step to its nearest visible parent and to its scope (the flow step
    it belongs to), promote nodes that contain other nodes to groups, build keys;
-5. give flat agent loops (GenAI: calls directly under the agent) `model` and
-   `tools` nodes, as LangGraph records them (loop_nodes.py);
+5. rebuild tool calls from the conversation when no span records them
+   (derived_tools.py), and give flat agent loops `model` and `tools` nodes, as
+   LangGraph records them (loop_nodes.py);
 6. derive transitions.
 """
 
@@ -26,6 +27,7 @@ from loopview.cost.split import call_cost
 from loopview.ingest.raw import RawSpan
 from loopview.normalize.adapters import adapter_for
 from loopview.normalize.adapters.base import Classification, ParentHint, error_message
+from loopview.normalize.derived_tools import derive_tool_calls
 from loopview.normalize.loop_nodes import add_loop_nodes
 from loopview.normalize.schema import (
     FLOW_KINDS,
@@ -65,7 +67,8 @@ def normalize_run(
     _add_inferred_parents(run, drafts, stale)
     _place_unclassified_starts(drafts)
     _decide_hidden(drafts)
-    steps = add_loop_nodes(_link(run.trace_id, drafts, stale))
+    steps = derive_tool_calls(_link(run.trace_id, drafts, stale))
+    steps = add_loop_nodes(steps, root_name=_service_name(run))
     transitions = derive_transitions(steps)
     return NormalizedRun(run=_run_info(run, steps, stale), steps=steps, transitions=transitions)
 
@@ -285,6 +288,15 @@ def _link(run_id: str, drafts: dict[str, _Draft], stale: bool) -> list[Step]:
     # Deterministic order: by start time, then span id (timestamps can tie).
     steps.sort(key=lambda s: (s.start_ns, s.id))
     return steps
+
+
+def _service_name(run: Run) -> str:
+    """What to call a run's synthetic agent: the service that sent it."""
+    for span in run.spans.values():
+        name = span.resource_attributes.get("service.name")
+        if name and not str(name).startswith("unknown_service"):
+            return str(name)
+    return "agent"
 
 
 # --- run info ------------------------------------------------------------------------
