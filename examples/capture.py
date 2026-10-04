@@ -9,6 +9,7 @@ so there is no child server process to clean up, which is unreliable on Windows.
 
 Usage (from examples/):  uv run python capture.py react_anthropic
                          uv run python capture.py demo.flagship
+                         uv run python capture.py <module> <fixture name>   (another name)
 """
 
 import os
@@ -36,10 +37,11 @@ def free_port() -> int:
 
 
 def main() -> None:
-    if len(sys.argv) != 2:
-        raise SystemExit("usage: capture.py <example module, e.g. react_anthropic or demo.flagship>")
+    if len(sys.argv) not in (2, 3):
+        raise SystemExit("usage: capture.py <example module, e.g. react_anthropic> [fixture name]")
     module = sys.argv[1]
-    fixture = FIXTURES / f"{module.split('.')[-1]}.otlp.jsonl"
+    name = sys.argv[2] if len(sys.argv) == 3 else module.split(".")[-1]
+    fixture = FIXTURES / f"{name}.otlp.jsonl"
     fixture.unlink(missing_ok=True)
     port = free_port()
 

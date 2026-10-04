@@ -1,0 +1,29 @@
+[project]
+name = "loopview-compat"
+version = "0.1.0"
+description = "One small agent per framework and instrumentation, to record what each really sends."
+requires-python = ">=3.12"
+dependencies = [
+    "anthropic>=1.9.0",
+    "openai>=2.0",
+    "openai-agents[litellm]>=0.23",
+    "openinference-instrumentation-openai>=0.1.63",
+    "openinference-instrumentation-anthropic>=3.0",
+    "openinference-instrumentation-openai-agents>=2.5",
+    "opentelemetry-instrumentation-openai-v2>=2.4b0",
+    # openai-v2 2.4b0 imports util.genai.instruments, which 1.x removed.
+    "opentelemetry-util-genai>=0.4b0,<1.0",
+    "opentelemetry-instrumentation-anthropic>=0.62",
+    "opentelemetry-sdk>=1.45.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.45.0",
+    "python-dotenv>=1.2.3",
+    "loopview",
+    "loopview-sdk",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+loopview = { path = "../../server", editable = true }
+loopview-sdk = { path = "../../sdk", editable = true }

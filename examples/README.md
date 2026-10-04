@@ -48,6 +48,20 @@ Each task is one run, and all runs of a study share a session. Later, reopen the
 saved runs with `cd ../server && uv run loopview --persist ../examples/mcp_tools_study.jsonl`.
 A recorded study is in `../fixtures/mcp_tools_study.otlp.jsonl`.
 
+## Compatibility recordings (`compat/`)
+
+One small agent per framework and instrumentation, all on the same task, to record
+what each really sends: the OpenAI SDK (OpenInference, and OpenTelemetry's own
+instrumentation), the Anthropic SDK (OpenInference, and OpenLLMetry), and the OpenAI
+Agents SDK. The OpenAI SDK ones talk to Claude through Anthropic's OpenAI-compatible
+endpoint, so one Anthropic key records them all. They live in their own uv project:
+these instrumentation packages pin versions that clash with the main examples.
+
+```sh
+uv run --project compat python capture.py compat.anthropic_sdk_openinference
+COMPAT_WRAP=1 uv run --project compat python capture.py compat.anthropic_sdk_openinference anthropic_sdk_openinference_wrapped
+```
+
 ## Recording fixtures
 
 ```sh
