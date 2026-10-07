@@ -5,10 +5,13 @@ name: Release
 # The tag must match the version in server/pyproject.toml. loopview-sdk is versioned on its
 # own: it is published when its version is new, and skipped when PyPI already has it.
 #
-# Uploads use PyPI trusted publishing (no API token stored here). One-time setup, for each
-# of the two projects, on https://pypi.org/manage/account/publishing/ : add a (pending)
-# publisher with owner YasmineZerai, repository loopview, workflow release.yml and
-# environment pypi. Then create the environment "pypi" in Settings -> Environments.
+# Uploads use PyPI trusted publishing (no API token stored here). One-time setup on
+# https://pypi.org/manage/account/publishing/ : add a (pending) publisher for each project,
+# with owner YasmineZerai, repository loopview and workflow release.yml. Each project needs
+# its own environment, because PyPI refuses one configuration for two project names:
+#   loopview      -> environment pypi-loopview
+#   loopview-sdk  -> environment pypi
+# Then create both environments in Settings -> Environments.
 
 on:
   push:
@@ -64,7 +67,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     environment:
-      name: pypi
+      name: pypi-loopview
       url: https://pypi.org/p/loopview
     permissions:
       id-token: write
