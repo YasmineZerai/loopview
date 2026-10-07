@@ -1,24 +1,28 @@
-// Activity in the graph: which card the view follows at a moment in time.
+// Activity in the graph: which cards are active at a moment in time.
 //
-// With Activity on, every card shows its calls and the camera follows the card
-// where something is happening: a call running at `time`, or else the call that
-// started last. Live is `time = LIVE`, replay moves `time`; the same rule serves both.
+// With Activity on, the active cards are the ones that open, and the camera
+// frames them: every card with a call running at `time` (several when branches
+// run in parallel), or else the card of the call that started last, so a card
+// stays open through the short gaps between calls. Live is `time = LIVE`, replay
+// moves `time`; the same rule serves both.
 
 import type { NormalizedRun, Step } from '../types'
 
-/** The graph key of the card to follow at `time`, or null before anything ran. */
-export function activeCardKey(run: NormalizedRun, time: number): string | null {
+/** The graph keys of the active cards at `time`; empty before anything ran. */
+export function activeCardKeys(run: NormalizedRun, time: number): Set<string> {
   const byId = new Map(run.steps.map((s) => [s.id, s]))
-  let running: Step | null = null
+  const keyOf = (step: Step) => (step.scope_id ? byId.get(step.scope_id)?.key : undefined)
+  const keys = new Set<string>()
   let latest: Step | null = null
   for (const step of run.steps) {
     if (step.hidden || (step.kind !== 'model_call' && step.kind !== 'tool_call')) continue
     if (step.start_ns > time) continue
     if (!latest || step.start_ns >= latest.start_ns) latest = step
     const isRunning = step.end_ns === null || step.end_ns > time
-    if (isRunning && (!running || step.start_ns >= running.start_ns)) running = step
+    const key = isRunning ? keyOf(step) : undefined
+    if (key) keys.add(key)
   }
-  const step = running ?? latest
-  const scope = step?.scope_id ? byId.get(step.scope_id) : undefined
-  return scope?.key ?? null
+  const fallback = keys.size === 0 && latest ? keyOf(latest) : undefined
+  if (fallback) keys.add(fallback)
+  return keys
 }

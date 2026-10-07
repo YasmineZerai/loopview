@@ -31,8 +31,8 @@ interface State {
   selectedKey: string | null // graph node shown in the details panel
   hoverKey: string | null // graph node hovered in the graph or the timeline
   collapsed: Set<string> // collapsed groups
-  // Cards showing their calls inline. With expandAll (or activity) on, the set lists the
-  // cards the user closed instead of the ones they opened.
+  // Cards showing their calls inline. With expandAll on, the set lists the cards the
+  // user closed instead of the ones they opened. Activity also opens the active cards.
   expanded: Set<string>
   expandAll: boolean
   playback: Playback
@@ -111,7 +111,7 @@ export const useStore = create<State>((set, get) => ({
   collapsed: new Set(),
   expanded: new Set(),
   expandAll: false,
-  playback: { time: LIVE, playing: false, speed: 1 },
+  playback: { time: LIVE, playing: false, speed: 0.5 }, // slow enough to follow what happens
   connected: false,
   sidebarOpen: true,
   theme: loadPref<Theme>('theme', 'light'),
@@ -234,8 +234,12 @@ function showPendingStep() {
   useStore.setState({ pendingStep: null, highlightStep: step!.id, selectedKey: key, focusRequest: { key, at: Date.now() } })
 }
 
-export function isExpanded(state: { expanded: Set<string>; expandAll: boolean; activity?: boolean }, key: string) {
-  return (state.expandAll || !!state.activity) !== state.expanded.has(key)
+/** Whether a card shows its calls: all of them with expandAll (bar the ones closed),
+ * else the ones opened by hand and, with Activity on, the `active` ones. */
+export function isExpanded(state: { expanded: Set<string>; expandAll: boolean }, key: string, active: Set<string> = NONE) {
+  return state.expandAll ? !state.expanded.has(key) : state.expanded.has(key) || active.has(key)
 }
+
+const NONE = new Set<string>()
 
 export const useSelectedRun = () => useStore((s) => (s.selectedRunId ? s.loaded.get(s.selectedRunId) : undefined))

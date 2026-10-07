@@ -6,7 +6,7 @@ import { useSelectedRun, useStore } from '../store'
 import { formatDuration } from '../theme'
 import { ChevronDown, ChevronUp, Pause, Play } from './icons'
 
-const SPEEDS = [0.5, 1, 2, 4]
+const SPEEDS = [0.5, 1, 2]
 
 /**
  * The bottom dock is hidden by default; this small floating control is all that
@@ -22,7 +22,7 @@ export function MiniPlayback() {
   const end = run.end_ns ?? run.start_ns
   const time = playback.time === LIVE ? end : Math.min(playback.time, end)
   return (
-    <div className="fade-in absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-surface/95 py-1.5 pl-1.5 pr-2 shadow-lg backdrop-blur">
+    <div data-tour="playback" className="fade-in absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2 rounded-full border border-border bg-surface/95 py-1.5 pl-1.5 pr-2 shadow-lg backdrop-blur">
       <button
         disabled={live}
         onClick={() => togglePlay()}
@@ -69,7 +69,7 @@ export function PlaybackBar() {
   const time = playback.time === LIVE ? end : playback.time
 
   return (
-    <div className="flex h-12 items-center gap-3 px-4">
+    <div data-tour="playback" className="flex h-12 items-center gap-3 px-4">
       <button
         disabled={live}
         onClick={() => togglePlay()}
