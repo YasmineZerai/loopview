@@ -4,9 +4,9 @@
 
 # loopview
 
-**Watch your AI agents run as a live graph, from any OpenTelemetry trace.**
+**Debug your AI agents as a live graph, whatever framework they're built with.**
 
-See which agent is working, what it thinks, which tools it calls, what comes back, and where control goes next. While it happens.
+See which agent ran, what it thought, which tool failed, what it did next, and what it cost. LangGraph, Pydantic AI, CrewAI, the OpenAI Agents SDK or your own loop: one view, from standard OpenTelemetry, on your machine.
 
 [![CI](https://github.com/YasmineZerai/loopview/actions/workflows/ci.yml/badge.svg)](https://github.com/YasmineZerai/loopview/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
@@ -14,41 +14,65 @@ See which agent is working, what it thinks, which tools it calls, what comes bac
 ![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-native-7c9cff.svg)
 ![Local first](https://img.shields.io/badge/local--first-no%20account%2C%20no%20cloud-22d3ee.svg)
 
-[**Try the live demo**](https://yasminezerai.github.io/loopview/) · [Quick start](#quick-start) · [Connect your agent](#connect-your-agent) · [How it works](#how-it-works) · [Design decisions](DECISIONS.md)
+[**Try the live demo**](https://yasminezerai.github.io/loopview/) · [Set it up with your coding agent](#set-it-up-with-your-coding-agent) · [Quick start](#quick-start) · [Every framework](#one-view-for-every-framework) · [Design decisions](DECISIONS.md)
 
 <br>
 
-<img src="docs/demo.gif" alt="loopview replaying a multi-agent run: a supervisor, three analysts in parallel, a failing tool, a critic loop and a handoff" width="100%">
+<img src="docs/demo.gif" alt="loopview replaying a multi-agent run: a supervisor splits the work, three analysts run in parallel, a tool fails and is retried, a critic sends the draft back, a writer finishes; the running cards open and the view follows them" width="100%">
 
 </div>
 
 <br>
 
-## Why loopview
+## Debug what your agent actually did
 
-Agent runs are hard to follow. An agent decides on its own which tool to call, loops, hands off to another agent, or splits work across several agents running in parallel. Most tracing tools show this as a tree or a waterfall, which is good for reading a run after the fact and poor at showing the *flow*.
+An agent decides on its own which tool to call, loops, hands off to another agent, or splits the work across several running in parallel. When the answer is wrong, slow or expensive, the question is always *what happened*, and a log or a flat list of spans makes you rebuild it in your head. loopview draws the run as a graph that builds itself while the agent runs, and answers the questions you actually debug with:
 
-loopview draws the run as a graph that builds itself while the agent runs:
+| You're asking | loopview shows |
+|---|---|
+| **What happened, in what order?** | Agents as groups, steps as cards, control moving along the edges: parallel branches side by side, loops as an arc with a counter, handoffs between agents. Replay any run at 0.5x, 1x or 2x. |
+| **What was it doing right now?** | With **Activity** on, the running cards open by themselves, show the model's thinking, replies and tool calls as they happen, close when done, and the view zooms in on them. |
+| **Which tool failed, and what did the agent do next?** | Failed calls turn red, with the error, the arguments that caused it and the result the model saw. Across many runs, the Tools tab counts whether the agent fixed its arguments, switched tool, retried blindly or gave up. |
+| **What did the model see?** | Open any step for the full conversation: system prompt, history, thinking, each tool call's arguments and result. |
+| **Why did it cost that much?** | A cost tree: the run branches into agents and steps, each as thick as its cost, down to what the tokens went to (system prompt, tool definitions, history, tool results, cache, thinking, reply). |
+| **Where did the time go?** | A timeline with one lane per agent: what ran when, and what ran at the same time. |
 
-- **Agents are groups, steps are cards**, each agent in its own colour.
-- **Control flow moves along the edges.** Parallel branches run side by side, loops show as an arc back with a counter, handoffs as an edge between agents.
-- **Tool calls fire next to the step that made them**, and a failed call turns red.
-- **Every step can be opened** to read its thinking, its replies, and each tool call's arguments and result, right in the graph. With **Activity** on, the running cards open by themselves and close when they're done, and the view zooms in on them. Clicking a card zooms to it.
-- **Any run can be replayed** at 0.5x (the default), 1x or 2x, with everything in the graph on the same clock.
-- **A cost tree shows where the money goes**: the run branches into agents and steps, each branch as thick as its cost, down to what the tokens were spent on.
-- **A Tools tab shows which tools an agent struggles with** across many runs: how often each fails, what the agent does next, and which tools it is offered but never uses.
+<img src="docs/screenshot-debug.png" alt="A run where two tool calls failed: the card shows both errors in red, and the details panel outlines the failing call with its arguments and the error message the model got back">
 
-It works with **any framework that emits OpenTelemetry traces** (LangGraph, Pydantic AI, the OpenAI and Anthropic SDKs, or your own code), and it runs **on your machine**: one command, no account, no database, nothing sent anywhere.
+<sub>A shop assistant whose first two tool calls fail: the card shows both errors, the details panel outlines one with the arguments that caused it and the message the model got back. The next calls show how it recovered.</sub>
+
+## One view for every framework
+
+Many agent debugging tools come with one framework or one vendor's SDK: they show that framework's runs, in its own terms. Move from LangGraph to Pydantic AI, run a CrewAI crew next to a hand-written loop, and you switch tools or lose the view.
+
+loopview reads **standard OpenTelemetry**. Each framework describes the same things differently (the [GenAI semantic conventions](https://github.com/open-telemetry/semantic-conventions-genai), OpenInference, plain spans), so loopview normalizes them all into one small schema: agents, steps, model calls and tool calls. Control flow is derived the same way for all of them. So a LangGraph supervisor, a Pydantic AI team and a hand-written Anthropic loop get the same graph, the same cost tree and the same Tools tab.
+
+- **One line to connect.** `loopview_sdk.connect()` finds the instrumentation of every framework and model SDK you have installed and switches it on.
+- **No lock-in.** The instrumentation is standard OpenTelemetry, maintained by the community: the same traces can go to any other OpenTelemetry backend.
+- **Tested for real.** Each integration below was recorded running the same task (two turns of tool calls, one failing tool), and the recordings are checked by the tests: [`examples/compat/`](examples/compat/), [`fixtures/`](fixtures/).
+- **Local.** One command, no account, no database, nothing sent anywhere.
+
+| Agent built with | Graph | Cost | Tools tab |
+|---|---|---|---|
+| **Pydantic AI** (including MCP servers) | agents, model/tools loops, sub-agents | yes | yes |
+| **LangGraph / LangChain** | graph nodes, routing, loops, subgraphs | yes | yes |
+| **CrewAI** | crew, agent, model/tools loop | yes | yes |
+| **OpenAI Agents SDK** | agent and its turns | yes | yes, except unused tools (it doesn't record the tool list) |
+| **Your own loop, OpenAI SDK** (with `agent()`) | model/tools loop | yes | yes; failed tools marked only with `@loopview_sdk.tool` (the OpenAI API has no error flag) |
+| **Your own loop, Anthropic SDK** (with `agent()`) | model/tools loop | yes | yes; failed tools marked with OpenInference's instrumentation or `@loopview_sdk.tool` |
+| **Your own spans** following the [GenAI conventions](https://github.com/open-telemetry/semantic-conventions-genai) (`invoke_agent`, `chat`, `execute_tool`) | as you record them | yes | yes |
+
+**Not recorded yet:** LlamaIndex, smolagents, AutoGen, Google ADK and other frameworks with an OpenInference or OpenTelemetry instrumentation. `connect()` switches their instrumentation on; expect model calls, cost and tools, with a structure that depends on the framework. **Other languages:** point any OpenTelemetry exporter (OTLP over HTTP) at loopview.
 
 ## See it
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/screenshot-graph.png" alt="A supervisor with three analysts running in parallel, with Activity on: the cards show what each one is doing"></td>
+    <td width="50%"><img src="docs/screenshot-graph.png" alt="A supervisor with three analysts running in parallel, with Activity on: the three running cards are open and show each analyst's thinking and tool calls"></td>
     <td width="50%"><img src="docs/screenshot-expanded.png" alt="A step opened in the graph, showing the model's thinking and tool calls"></td>
   </tr>
   <tr>
-    <td><b>Parallel agents, live.</b> Three analysts work at the same time. With Activity on, the cards show what each one thinks, says and does, and the view follows the one that's running.</td>
+    <td><b>Parallel agents, live.</b> Three analysts work at the same time. With Activity on, the running cards open and show what each one thinks and calls, then close when they're done.</td>
     <td><b>Open any step.</b> Its thinking, replies, and every tool call with arguments and results, inside the graph.</td>
   </tr>
   <tr>
@@ -61,7 +85,7 @@ It works with **any framework that emits OpenTelemetry traces** (LangGraph, Pyda
   </tr>
 </table>
 
-Or skip the screenshots: [**open the live demo**](https://yasminezerai.github.io/loopview/) in your browser. It replays recorded runs of five example agents, each with the prompt it was given, and a one-minute guided tour shows where to click. Nothing to install.
+Or skip the screenshots: [**open the live demo**](https://yasminezerai.github.io/loopview/) in your browser. It replays recorded runs of five example agents, each with the prompt it was given, and a short guided tour shows where to click. Nothing to install.
 
 ## Where the money goes
 
@@ -71,9 +95,11 @@ Press <kbd>c</kbd> and the run becomes a tree: the trunk branches into agents an
 
 ## Which tools does your agent struggle with?
 
-<img src="docs/screenshot-tools.png" alt="The Tools tab after 20 tasks on GitHub's MCP server: a table of tools sorted by errors, one opened to show its most common error, the arguments of the failing call and a link to it in the graph">
+<img src="docs/screenshot-tools.png" alt="The Tools tab over 26 runs, 20 of them on GitHub's MCP server: three findings at the top, then a table of tools sorted by errors, one opened to show its most common error, the arguments of the failing call and a link to it in the graph">
 
-Press <kbd>o</kbd> for the Tools tab. Across all runs (or one session), it shows how each tool really behaves: how often it fails, what the agent does after a failure, which tools it switches between, and which ones it is offered but never calls. Tool description linters score the text; this shows what happens in real runs. A line at the top sums it up, for example "20 runs, 312 tool calls, 41 errors. 2 tools caused 78% of errors. 15 tools never used (about 9,000 tokens per run, estimated)."
+Press <kbd>o</kbd> for the Tools tab. Across all runs (or one session), it shows how each tool really behaves: how often it fails, what the agent does after a failure, which tools it switches between, and which ones it is offered but never calls. Tool description linters score the text; this shows what happens in real runs.
+
+It opens with what no single trace tells you. Over 20 read-only tasks on GitHub's MCP server plus the examples, for instance: the agents changed course after 4 of their 5 tool errors; they were offered 15 tools they never called, whose definitions cost about 138,000 tokens; and one tool's results averaged about 25,000 tokens each.
 
 | Column | Means |
 |---|---|
@@ -85,6 +111,45 @@ Press <kbd>o</kbd> for the Tools tab. Across all runs (or one session), it shows
 Click a tool to see its most common errors (grouped, with the arguments of an example call), the tools it was swapped for, and links that open the run on that exact call in the graph. Below the table, **Never called** lists tools that were offered but never used, with the estimated cost of sending their definitions. If the traces don't record which tools the model was offered, it says so instead of guessing.
 
 To try it on a real MCP server, [`examples/mcp_tools_study.py`](examples/mcp_tools_study.py) runs 20 read-only tasks against GitHub's MCP server and prints the same summary. The definitions, and why they are what they are, are in [DECISIONS.md](DECISIONS.md) (D44).
+
+## Set it up with your coding agent
+
+Paste this into Claude Code, Cursor, Copilot or any coding agent, from your project's folder. It installs loopview, connects your agent and runs it once so you can look at the result.
+
+```text
+Set up loopview (https://github.com/YasmineZerai/loopview) in this project so I can
+debug my AI agent's runs as a live graph. loopview is a local debugger that reads
+OpenTelemetry traces; its README explains everything below in more detail.
+
+1. Install and start loopview outside this repository (it isn't on PyPI yet). It needs
+   Python 3.11+, uv and Node 22+. Clone it next to this project, not inside it:
+     git clone https://github.com/YasmineZerai/loopview ../loopview
+     cd ../loopview/ui && npm install && npm run build
+     cd ../server && uv run loopview --no-browser
+   Keep that server running in the background. It serves the UI and receives traces
+   on http://127.0.0.1:4318.
+2. Find what the agent in this project is built with (LangGraph/LangChain, Pydantic AI,
+   CrewAI, the OpenAI Agents SDK, or a loop written by hand on the OpenAI or Anthropic
+   SDK) and where it starts.
+3. Add to this project's environment, with the package manager it already uses:
+     loopview-sdk @ git+https://github.com/YasmineZerai/loopview#subdirectory=sdk
+   plus the instrumentation package for the framework, from the table in the
+   "Connect your agent" section of loopview's README (Pydantic AI needs none).
+4. At the very start of the entry point, before any agent or model client is created,
+   connect to loopview, only when the environment variable LOOPVIEW is set, so that
+   nothing changes otherwise:
+     import os
+     if os.environ.get("LOOPVIEW"):
+         import loopview_sdk
+         loopview_sdk.connect()
+5. If the agent loop is written by hand, wrap one task in
+   `with loopview_sdk.agent("<agent name>"):` so the whole task shows as one run.
+6. Run the agent once, with LOOPVIEW=1, on a short and cheap task. Check that
+   connect() printed which frameworks it instrumented, and that the run arrived:
+   http://127.0.0.1:4318/api/runs should list it.
+7. Tell me what you changed, the command to start a run with loopview, and to open
+   http://127.0.0.1:4318. Don't commit anything.
+```
 
 ## Quick start
 
@@ -136,7 +201,7 @@ loopview_sdk.connect()
 
 `connect()` sends traces to loopview, switches on the instrumentation of every agent framework and model SDK it finds installed, turns on message content capture, and flushes at exit so short scripts don't lose their last spans. It prints what it instrumented, and anything it couldn't with the reason.
 
-That's all for a framework. Run your agent: it appears in loopview as it runs.
+That's all for a framework. Run your agent: it appears in loopview as it runs. What each framework gives you is in [the table above](#one-view-for-every-framework).
 
 **3. If you wrote the agent loop yourself** on the OpenAI or Anthropic SDK, wrap the loop so the whole task is one run:
 
@@ -155,29 +220,9 @@ with loopview_sdk.agent("weather_assistant"):
     ...  # your loop: call the model, run the tools it asks for, repeat
 ```
 
-Without `@loopview_sdk.tool`, your tool calls are rebuilt from the conversation (the model asks for a tool, the next call carries its result). If you decorate tools, decorate all of them, or none.
+Without `@loopview_sdk.tool`, your tool calls are rebuilt from the conversation (the model asks for a tool, the next call carries its result). If you decorate tools, decorate all of them, or none. Without `agent()`, a hand-written loop still shows, but every model call is a run of its own.
 
-**loopview elsewhere?** `loopview_sdk.connect(url="http://host:4318")`, or set `LOOPVIEW_URL`. The default is `http://127.0.0.1:4318`.
-
-### What works, with what
-
-Each of these was recorded for real on the same task (two turns of tool calls, one failing tool) and is checked by the tests: [`examples/compat/`](examples/compat/), [`fixtures/`](fixtures/).
-
-| Agent built with | Graph | Cost | Tools tab |
-|---|---|---|---|
-| **Pydantic AI** (including MCP servers) | agents, model/tools loops, sub-agents | yes | yes |
-| **LangGraph / LangChain** | graph nodes, routing, loops, subgraphs | yes | yes |
-| **CrewAI** | crew, agent, model/tools loop | yes | yes |
-| **OpenAI Agents SDK** | agent and its turns | yes | yes, except unused tools (it doesn't record the tool list) |
-| **Your own loop, OpenAI SDK** (with `agent()`) | model/tools loop | yes | yes; failed tools marked only with `@loopview_sdk.tool` (the OpenAI API has no error flag) |
-| **Your own loop, Anthropic SDK** (with `agent()`) | model/tools loop | yes | yes; failed tools marked with OpenInference's instrumentation or `@loopview_sdk.tool` |
-| **Your own spans** following the [GenAI conventions](https://github.com/open-telemetry/semantic-conventions-genai) (`invoke_agent`, `chat`, `execute_tool`) | as you record them | yes | yes |
-
-**Not recorded yet:** LlamaIndex, smolagents, AutoGen, Google ADK and other frameworks with an OpenInference or OpenTelemetry instrumentation. `connect()` switches their instrumentation on; expect model calls, cost and tools, with a structure that depends on the framework.
-
-**Other languages:** point any OpenTelemetry exporter (OTLP over HTTP) at `http://127.0.0.1:4318/v1/traces`. `connect()`, `agent()` and `@tool` are Python only.
-
-Without `agent()`, a hand-written loop still shows, but every model call is a run of its own. Costs are in dollars for Anthropic and OpenAI models (others in tokens, or [add prices](#using-it)).
+**loopview elsewhere?** `loopview_sdk.connect(url="http://host:4318")`, or set `LOOPVIEW_URL`. The default is `http://127.0.0.1:4318`. **Other languages:** point any OpenTelemetry exporter (OTLP over HTTP) at `http://127.0.0.1:4318/v1/traces`; `connect()`, `agent()` and `@tool` are Python only. Costs are in dollars for Anthropic and OpenAI models (others in tokens, or [add prices](#using-it)).
 
 <details>
 <summary><b>Without the SDK</b></summary>
@@ -231,7 +276,7 @@ flowchart LR
 
 1. **Receiver.** Decodes OTLP export requests (protobuf or JSON) into raw spans.
 2. **Store.** Groups spans into runs by trace id, and runs into sessions by conversation id. Keeps the 200 most recent runs in memory; `--persist FILE` also saves them to a file.
-3. **Normalizer.** Every framework describes the same things differently. One adapter per convention (`gen_ai`, `openinference`, `generic`) turns spans into one small schema: agents, steps, model calls (with messages and thinking) and tool calls (with arguments and results). When a framework records an agent's model and tool calls directly under it (the GenAI conventions), the normalizer adds `model` and `tools` steps per turn, so the loop is drawn the same way as in LangGraph.
+3. **Normalizer.** This is what makes every framework look the same. Each describes the same things differently, so one adapter per convention (`gen_ai`, `openinference`, `generic`) turns spans into one small schema: agents, steps, model calls (with messages and thinking) and tool calls (with arguments and results). When a framework records an agent's model and tool calls directly under it (the GenAI conventions), the normalizer adds `model` and `tools` steps per turn, so the loop is drawn the same way as in LangGraph.
 4. **Transitions.** No framework says "control went from A to B", so loopview derives it with one rule: within the same agent or graph, A leads to B when A ended before B started and no other step sits between them. That one rule gives sequences, parallel fan out and fan in, loops and handoffs.
 5. **Live hub.** Every 100 ms, pushes the steps that changed to the browser over Server-Sent Events.
 6. **UI.** React and React Flow, laid out with ELK in a Web Worker. The graph is computed for a moment in time, so live view and replay are the same code.
@@ -265,7 +310,7 @@ Standard OpenTelemetry exporters send a span only when it **ends**, but a live v
 | <kbd>f</kbd> | fit the graph to the screen |
 | <kbd>esc</kbd> | close the details panel |
 
-Runs can be exported as JSONL and imported by someone else, so you can share a trace. `loopview --help` lists the server options (`--port`, `--persist FILE`, `--max-runs`, `--prices FILE`).
+Click a card to open its details and zoom to it; click or drag on the timeline to jump to a moment. Runs can be exported as JSONL and imported by someone else, so you can share a trace. `loopview --help` lists the server options (`--port`, `--persist FILE`, `--max-runs`, `--prices FILE`).
 
 Prices for Anthropic and OpenAI models live in [`pricing.json`](server/src/loopview/cost/pricing.json), with a source link and the date each was checked. To add a model or correct a price, pass your own file with `--prices FILE`; its entries override the built-in ones. Models with no price are shown in tokens only.
 
@@ -293,7 +338,7 @@ Prices for Anthropic and OpenAI models live in [`pricing.json`](server/src/loopv
 | [`examples/`](examples/) | example agents, flagship demo, fixture capture | needs `ANTHROPIC_API_KEY` |
 | [`fixtures/`](fixtures/) | traces recorded from real framework runs | used by server and UI tests |
 
-For UI work with hot reload, keep the server running and run `npm run dev` in `ui/`. See [CONTRIBUTING.md](CONTRIBUTING.md) for the rest.
+For UI work with hot reload, keep the server running and run `npm run dev` in `ui/`. The README's screenshots and GIF are made by `ui/scripts/docs-shots.mjs` and `ui/scripts/record-demo.mjs` (with `make_gif.py`). See [CONTRIBUTING.md](CONTRIBUTING.md) for the rest.
 
 ## Roadmap
 

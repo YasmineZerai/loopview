@@ -25,8 +25,8 @@ const html = `<!doctype html><html><head><style>
   <div class="dots"></div>
   <div class="text">
     <div class="brand"><img src="data:image/svg+xml;base64,${logo}">loopview</div>
-    <p>Watch your AI agents run as a live graph, from any OpenTelemetry trace.</p>
-    <div class="tags"><span>LangGraph</span><span>Pydantic AI</span><span>OpenAI</span><span>Anthropic</span><span>OpenTelemetry</span></div>
+    <p>Debug your AI agents as a live graph. One view for every framework.</p>
+    <div class="tags"><span>LangGraph</span><span>Pydantic AI</span><span>CrewAI</span><span>OpenAI Agents SDK</span><span>OpenAI</span><span>Anthropic</span><span>OpenTelemetry</span></div>
   </div>
   <img class="shot" src="data:image/png;base64,${screenshot}">
 </body></html>`

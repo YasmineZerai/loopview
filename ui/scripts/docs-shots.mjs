@@ -35,14 +35,19 @@ await settle(800)
 await state(() => window.__loopview.getState().theme === 'dark' && window.__loopview.getState().toggleTheme())
 const reactId = await importFixture('react_anthropic')
 const multiId = await importFixture('multi_agent_pydantic')
+const failingId = await importFixture('failing_tools_pydantic')
+await importFixture('langgraph_router')
 const flagshipId = (await (await fetch(`${base}/api/demo`, { method: 'POST' })).json()).trace_ids[0]
 const setActivity = (on) => state((v) => window.__loopview.getState().activity !== v && window.__loopview.getState().toggleActivity(), on)
 
-// 1. Hero: the flagship mid-run, Activity on: cards open, the view on the analysts.
+// 1. Hero: the flagship mid-run, Activity on: the three analysts running, open, framed.
 await select(flagshipId)
 await setActivity(true)
 await at(9.2)
-await settle(1200)
+await settle(2600)
+// So far only the supervisor and the analysts exist: Fit frames them, open, with room.
+await page.keyboard.press('f')
+await settle(900)
 await shot('screenshot-graph')
 await setActivity(false)
 
@@ -75,5 +80,34 @@ await page.mouse.move(5, 500)
 await settle(1800)
 await shot('screenshot-cost')
 await state(() => window.__loopview.getState().setView('graph'))
+
+// 6. Debugging: a failed tool call, jumped to as from the Tools tab: its card open in
+// the graph and the call outlined in the details panel, with the error and arguments.
+await select(failingId)
+await state(() => {
+  const s = window.__loopview.getState()
+  const run = s.loaded.get(s.selectedRunId)
+  const failed = [...run.steps.values()].filter((x) => x.kind === 'tool_call' && x.status === 'error').sort((a, b) => a.start_ns - b.start_ns)
+  s.openStep(run.run.id, failed[failed.length - 1].id)
+})
+await settle(2200)
+// The failed call is first in the card: show the card's calls from the top.
+await page.locator('.react-flow__node-step .overflow-y-auto').evaluateAll((els) => els.forEach((el) => (el.scrollTop = 0)))
+await settle(400)
+await shot('screenshot-debug')
+await state(() => window.__loopview.getState().setSelectedKey(null))
+
+// 7. The Tools tab over every run, with the 20 tasks run on GitHub's MCP server (imported
+// only now, so their runs don't fill the run list in the shots above): the findings,
+// and one tool opened. The run list is hidden, the table is what matters here.
+await importFixture('mcp_tools_study')
+await state(() => window.__loopview.getState().toggleSidebar())
+await state(() => window.__loopview.getState().setView('tools'))
+await settle(1500)
+await page.locator('tbody button', { hasText: 'get_file_contents' }).click()
+await settle(800)
+await shot('screenshot-tools')
+await state(() => window.__loopview.getState().setView('graph'))
+await state(() => window.__loopview.getState().toggleSidebar())
 
 await browser.close()
