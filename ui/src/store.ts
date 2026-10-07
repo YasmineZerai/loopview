@@ -5,7 +5,7 @@
 // events, which carry only the steps that changed.
 
 import { create } from 'zustand'
-import { api } from './api'
+import { api, STATIC_DEMO } from './api'
 import { LIVE } from './graph/buildGraph'
 import type { NormalizedRun, RunInfo, RunUpdateEvent, Step, Transition } from './types'
 
@@ -111,7 +111,8 @@ export const useStore = create<State>((set, get) => ({
   collapsed: new Set(),
   expanded: new Set(),
   expandAll: false,
-  playback: { time: LIVE, playing: false, speed: 0.5 }, // slow enough to follow what happens
+  // Slow enough to follow what happens; the hosted demo's recorded runs replay at 1x.
+  playback: { time: LIVE, playing: false, speed: STATIC_DEMO ? 1 : 0.5 },
   connected: false,
   sidebarOpen: true,
   theme: loadPref<Theme>('theme', 'light'),

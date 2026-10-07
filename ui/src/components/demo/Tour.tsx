@@ -445,7 +445,7 @@ const STEPS: Step[] = [
         <Item mark={<Key>← →</Key>}>
           <B>Step</B> one event at a time
         </Item>
-        <Item mark={<span className="font-mono text-[10.5px] text-muted">0.5x</span>}>
+        <Item mark={<span className="font-mono text-[10.5px] text-muted">1x</span>}>
           <B>Speed</B>: 0.5x, 1x or 2x
         </Item>
       </Legend>
