@@ -6,6 +6,7 @@ so an extra dependency is not worth it.
 
 import argparse
 import logging
+import socket
 import threading
 import webbrowser
 from pathlib import Path
@@ -82,16 +83,27 @@ def main(argv: list[str] | None = None) -> None:
     # Flush now: when stdout is a pipe, Python buffers it and the banner would
     # only appear when the server stops.
     print(flush=True)
+    open_url = None
     if args.command == "demo" and not args.no_browser:
-        # Give the server a moment to start listening before the browser asks.
-        url = f"http://{args.host}:{args.port}"
-        threading.Timer(1.0, webbrowser.open, args=[url]).start()
+        open_url = f"http://{args.host}:{args.port}"
     app = create_app(store=store, capture=capture, pricing=merged_pricing(args.prices))
     server = _Server(
-        uvicorn.Config(app, host=args.host, port=args.port, log_level="warning"), app.state.hub
+        uvicorn.Config(app, host=args.host, port=args.port, log_level="warning"),
+        app.state.hub,
+        open_url,
     )
     try:
         server.run()
+    except SystemExit:
+        # uvicorn has logged the reason (usually the port is taken) and exits.
+        if not server.started:
+            print(
+                f"\nloopview could not listen on {args.host}:{args.port}. If another loopview "
+                "(or another OpenTelemetry collector) is using that port, stop it or choose "
+                "another one with --port.",
+                flush=True,
+            )
+        raise
     except KeyboardInterrupt:
         # uvicorn re-raises Ctrl+C once it has shut down cleanly; that's the
         # normal way out, not an error.
@@ -106,9 +118,17 @@ class _Server(uvicorn.Server):
     pressed. Otherwise it would wait for the browser's open event stream, which
     never closes on its own, and then cancel it with a traceback."""
 
-    def __init__(self, config: uvicorn.Config, hub: LiveHub) -> None:
+    def __init__(self, config: uvicorn.Config, hub: LiveHub, open_url: str | None = None) -> None:
         super().__init__(config)
         self.hub = hub
+        self.open_url = open_url
+
+    async def startup(self, sockets: list[socket.socket] | None = None) -> None:
+        await super().startup(sockets)
+        # Open the browser only once the port is ours: if it was taken, the page
+        # would show whatever else is listening there.
+        if self.started and self.open_url:
+            threading.Thread(target=webbrowser.open, args=[self.open_url], daemon=True).start()
 
     def handle_exit(self, sig: int, frame: FrameType | None) -> None:
         self.hub.close()
