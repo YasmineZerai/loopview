@@ -33,8 +33,8 @@ loopview draws the run as a graph that builds itself while the agent runs:
 - **Agents are groups, steps are cards**, each agent in its own colour.
 - **Control flow moves along the edges.** Parallel branches run side by side, loops show as an arc back with a counter, handoffs as an edge between agents.
 - **Tool calls fire next to the step that made them**, and a failed call turns red.
-- **Every step can be opened** to read its thinking, its replies, and each tool call's arguments and result, right in the graph. With **Activity** on, cards open by themselves and the view follows the step that's running.
-- **Any run can be replayed** at 0.5x to 4x, with everything in the graph on the same clock.
+- **Every step can be opened** to read its thinking, its replies, and each tool call's arguments and result, right in the graph. With **Activity** on, the running cards open by themselves and close when they're done, and the view zooms in on them. Clicking a card zooms to it.
+- **Any run can be replayed** at 0.5x (the default), 1x or 2x, with everything in the graph on the same clock.
 - **A cost tree shows where the money goes**: the run branches into agents and steps, each branch as thick as its cost, down to what the tokens were spent on.
 - **A Tools tab shows which tools an agent struggles with** across many runs: how often each fails, what the agent does next, and which tools it is offered but never uses.
 
@@ -61,7 +61,7 @@ It works with **any framework that emits OpenTelemetry traces** (LangGraph, Pyda
   </tr>
 </table>
 
-Or skip the screenshots: [**open the live demo**](https://yasminezerai.github.io/loopview/) in your browser. It replays recorded runs, nothing to install.
+Or skip the screenshots: [**open the live demo**](https://yasminezerai.github.io/loopview/) in your browser. It replays recorded runs of five example agents, each with the prompt it was given, and a one-minute guided tour shows where to click. Nothing to install.
 
 ## Where the money goes
 
@@ -260,7 +260,7 @@ Standard OpenTelemetry exporters send a span only when it **ends**, but a live v
 | <kbd>←</kbd> <kbd>→</kbd> | step through events |
 | <kbd>e</kbd> | open or close every step in the graph |
 | <kbd>g</kbd> <kbd>c</kbd> <kbd>o</kbd> | the Graph, Cost and Tools tabs |
-| <kbd>a</kbd> | Activity on or off: cards open and the view follows the running step |
+| <kbd>a</kbd> | Activity on or off: the running cards open and the view zooms in on them |
 | <kbd>t</kbd> | show or hide the timeline |
 | <kbd>f</kbd> | fit the graph to the screen |
 | <kbd>esc</kbd> | close the details panel |

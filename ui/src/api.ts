@@ -31,9 +31,23 @@ const serverApi = {
 
 // index.json lists every recorded run with its RunInfo, so the run list shows
 // without downloading the runs; each run's file is fetched when it is opened.
+// Only the curated examples are `listed`; the others (the MCP study's tasks) feed
+// the Tools tab and open from its links.
 interface IndexEntry {
   file: string
   run: RunInfo
+  listed: boolean
+  about: DemoAbout | null
+}
+
+/** What the demo says about one example: the agent, and the task it was given. */
+export interface DemoAbout {
+  title: string
+  framework: string
+  source: string // path in the repository
+  summary: string
+  prompt: string
+  look_for: string[]
 }
 
 let index: Promise<IndexEntry[]> | null = null
@@ -44,8 +58,14 @@ function loadIndex(): Promise<IndexEntry[]> {
   return index
 }
 
+/** The demo's description of each listed example, by run id. */
+export async function demoCatalog(): Promise<Map<string, DemoAbout>> {
+  const entries = await loadIndex()
+  return new Map(entries.flatMap((e) => (e.about ? [[e.run.id, e.about] as const] : [])))
+}
+
 const staticApi: typeof serverApi = {
-  runs: async () => (await loadIndex()).map((entry) => entry.run),
+  runs: async () => (await loadIndex()).filter((entry) => entry.listed).map((entry) => entry.run),
   run: async (id) => {
     const entry = (await loadIndex()).find((e) => e.run.id === id)
     if (!entry) throw new Error(`no recorded run ${id}`)

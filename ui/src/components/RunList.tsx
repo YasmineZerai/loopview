@@ -1,10 +1,11 @@
 // The left sidebar: recent runs, grouped by session when runs share one.
 
 import { useRef } from 'react'
-import { api, STATIC_DEMO } from '../api'
+import { api, STATIC_DEMO, type DemoAbout } from '../api'
 import { useStore } from '../store'
 import { formatDuration, timeAgo } from '../theme'
 import type { RunInfo } from '../types'
+import { useDemoCatalog } from './demo/demoState'
 import { StatusMark } from './StatusMark'
 import { Upload } from './icons'
 
@@ -13,8 +14,10 @@ export function RunList() {
   const selectedRunId = useStore((s) => s.selectedRunId)
   const selectRun = useStore((s) => s.selectRun)
   const fileInput = useRef<HTMLInputElement>(null)
+  const catalog = useDemoCatalog()
 
-  const list = [...runs.values()].sort((a, b) => b.start_ns - a.start_ns)
+  // The demo keeps its examples in the order they were picked, best first.
+  const list = STATIC_DEMO ? [...runs.values()] : [...runs.values()].sort((a, b) => b.start_ns - a.start_ns)
   // Sessions with more than one run get a header; single runs stay flat.
   const sessionCounts = new Map<string, number>()
   for (const r of list) if (r.session_id) sessionCounts.set(r.session_id, (sessionCounts.get(r.session_id) ?? 0) + 1)
@@ -23,7 +26,7 @@ export function RunList() {
   return (
     <div className="flex h-full flex-col">
       <div className="flex h-11 shrink-0 items-center justify-between border-b border-border px-4">
-        <span className="text-[11px] uppercase tracking-wider text-muted">Runs</span>
+        <span className="text-[11px] uppercase tracking-wider text-muted">{STATIC_DEMO ? 'Example runs' : 'Runs'}</span>
         <button
           className={`flex items-center gap-1.5 rounded-md px-2 py-1 text-[11.5px] text-muted hover:bg-overlay hover:text-text ${STATIC_DEMO ? 'hidden' : ''}`}
           onClick={() => fileInput.current?.click()}
@@ -58,7 +61,7 @@ export function RunList() {
                   session {run.session_id!.slice(0, 12)} · {sessionCounts.get(run.session_id!)} runs
                 </div>
               )}
-              <RunItem run={run} selected={run.id === selectedRunId} onClick={() => selectRun(run.id, true)} />
+              <RunItem run={run} about={catalog.get(run.id)} selected={run.id === selectedRunId} onClick={() => selectRun(run.id, true)} />
             </div>
           )
         })}
@@ -67,7 +70,8 @@ export function RunList() {
   )
 }
 
-function RunItem({ run, selected, onClick }: { run: RunInfo; selected: boolean; onClick: () => void }) {
+function RunItem({ run, about, selected, onClick }: { run: RunInfo; about?: DemoAbout; selected: boolean; onClick: () => void }) {
+  if (about) return <DemoRunItem run={run} about={about} selected={selected} onClick={onClick} />
   return (
     <button
       onClick={onClick}
@@ -83,6 +87,26 @@ function RunItem({ run, selected, onClick }: { run: RunInfo; selected: boolean; 
         <span className="font-mono">{run.step_count} spans</span>
       </div>
       {run.service_name && <div className="truncate pl-5 text-[10.5px] text-muted/70">{run.service_name}</div>}
+    </button>
+  )
+}
+
+/** In the demo: what the example is, rather than when it was recorded. */
+function DemoRunItem({ run, about, selected, onClick }: { run: RunInfo; about: DemoAbout; selected: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      title={about.summary}
+      className={`mb-1 w-full rounded-lg border px-3 py-2 text-left transition-colors duration-150 ${selected ? 'border-border bg-surface shadow-sm' : 'border-transparent hover:bg-overlay'}`}
+    >
+      <div className="flex items-center gap-2">
+        <StatusMark status={run.status} size={12} />
+        <span className="truncate text-[12.5px] font-medium text-text">{about.title}</span>
+      </div>
+      <div className="mt-0.5 flex gap-2 pl-5 text-[11px] text-muted">
+        <span>{about.framework}</span>
+        {run.end_ns !== null && <span className="font-mono">{formatDuration(run.end_ns - run.start_ns)}</span>}
+      </div>
     </button>
   )
 }

@@ -1,20 +1,22 @@
 // Layout: run list on the left, the canvas in the middle. The top bar has three
 // main tabs for the canvas (graph, cost tree, tools) and, to the right, quieter
 // controls for the current view. Activity is shown in the graph itself (a), not
-// in a side panel: cards open and the view follows what is happening. Details
+// in a side panel: the running cards open and the view zooms in on them. Details
 // slide in over the graph; the playback bar and timeline are a dock at the
 // bottom, hidden until asked for (a small floating control remains).
 
 import { ReactFlowProvider, useReactFlow } from '@xyflow/react'
 import { useEffect } from 'react'
 import { api, STATIC_DEMO, subscribe } from './api'
-import { DemoHint, useDemoAutoplay } from './components/DemoHint'
+import { useDemo, useDemoAutoplay } from './components/demo/demoState'
+import { RunAbout } from './components/demo/RunAbout'
+import { Tour } from './components/demo/Tour'
 import { CostTree } from './components/cost/CostTree'
 import { ToolsView } from './components/tools/ToolsView'
 import { DetailsPanel } from './components/details/DetailsPanel'
 import { EmptyState } from './components/EmptyState'
 import { GraphView } from './components/graph/GraphView'
-import { Activity, Coin, Download, Expand, Fit, Logo, Moon, Nodes, Sidebar, Sun, Wrench } from './components/icons'
+import { Activity, Coin, Compass, Download, Expand, Fit, Logo, Moon, Nodes, Sidebar, Sun, Wrench } from './components/icons'
 import { MiniPlayback, PlaybackBar, stepEvent, togglePlay, usePlaybackClock } from './components/PlaybackBar'
 import { RunList } from './components/RunList'
 import { StatusMark } from './components/StatusMark'
@@ -38,6 +40,7 @@ export default function App() {
         <TopBar />
         <div className="flex min-h-0 flex-1">
           <aside
+            data-tour="runs"
             className={`shrink-0 overflow-hidden border-r border-border bg-surface/70 transition-[width] duration-250 ease-out ${sidebarOpen && hasRuns ? 'w-64' : 'w-0'}`}
           >
             <div className="h-full w-64">
@@ -45,16 +48,16 @@ export default function App() {
             </div>
           </aside>
           <main className="relative flex min-w-0 flex-1 flex-col">
-            <div className="relative min-h-0 flex-1 overflow-hidden">
+            <div data-tour="canvas" className="relative min-h-0 flex-1 overflow-hidden">
               {hasRuns ? <GraphView /> : <EmptyState />}
               {hasRuns && view === 'cost' && <CostTree />}
               {hasRuns && view === 'tools' && <ToolsView />}
               {hasRuns && !dockOpen && <MiniPlayback />}
-              {STATIC_DEMO && hasRuns && <DemoHint />}
+              {STATIC_DEMO && hasRuns && view === 'graph' && <RunAbout />}
               <DetailsPanel />
             </div>
             {hasRuns && dockOpen && (
-              <div className="h-[256px] shrink-0 border-t border-border bg-surface/70">
+              <div data-tour="timeline" className="h-[256px] shrink-0 border-t border-border bg-surface/70">
                 <PlaybackBar />
                 <div className="h-[208px] border-t border-border">
                   <Timeline />
@@ -64,6 +67,7 @@ export default function App() {
           </main>
         </div>
       </div>
+      {STATIC_DEMO && hasRuns && <Tour />}
     </ReactFlowProvider>
   )
 }
@@ -104,6 +108,7 @@ function TopBar() {
             return (
               <button
                 key={id}
+                data-tour={`tab-${id}`}
                 onClick={() => setView(id)}
                 title={`${title} (${key})`}
                 aria-current={active ? 'page' : undefined}
@@ -127,6 +132,11 @@ function TopBar() {
       )}
 
       <div className="ml-auto flex items-center gap-0.5">
+        {STATIC_DEMO && (
+          <button className={`${control} mr-1`} onClick={useDemo.getState().startTour} title="A one-minute tour of loopview">
+            <Compass size={13} /> Tour
+          </button>
+        )}
         {STATIC_DEMO ? (
           <a
             className="mr-2 flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-[11.5px] text-muted hover:text-text"
@@ -144,20 +154,19 @@ function TopBar() {
         {run && view === 'graph' && (
           <>
             <button
+              data-tour="activity"
               className={`${control} ${activity ? 'text-text' : ''}`}
               onClick={toggleActivity}
               aria-pressed={activity}
-              title="Show what happens inside the graph: cards open and the view follows the running step (a)"
+              title="Follow what happens: the running cards open, close when done, and the view zooms in on them (a)"
             >
               <Activity size={13} /> Activity
               <span className={`ml-0.5 h-1.5 w-1.5 rounded-full ${activity ? 'bg-[var(--color-view-graph)]' : 'bg-border'}`} />
             </button>
-            {!activity && (
-              <button className={`${control} ${expandAll ? 'text-text' : ''}`} onClick={toggleExpandAll} title="Show every step's calls inside the graph (e)">
-                <Expand size={13} /> {expandAll ? 'Collapse' : 'Expand'}
-              </button>
-            )}
-            <button className={control} onClick={() => fitView({ duration: 300, padding: 0.12 })} title="Fit to screen (f)">
+            <button data-tour="expand" className={`${control} ${expandAll ? 'text-text' : ''}`} onClick={toggleExpandAll} title="Show every step's calls inside the graph (e)">
+              <Expand size={13} /> {expandAll ? 'Collapse' : 'Expand'}
+            </button>
+            <button data-tour="fit" className={control} onClick={() => fitView({ duration: 300, padding: 0.12 })} title="Fit to screen (f)">
               <Fit size={13} /> Fit
             </button>
           </>

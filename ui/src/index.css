@@ -421,6 +421,21 @@ body {
   }
 }
 
+/* The demo's guided tour: everything dimmed except the part a step describes. */
+.tour-dim {
+  background: rgb(9 9 11 / 0.5);
+}
+.tour-spot {
+  box-shadow:
+    0 0 0 2px var(--color-accent),
+    0 0 0 9999px rgb(9 9 11 / 0.5);
+  transition:
+    top 250ms var(--ease-out),
+    left 250ms var(--ease-out),
+    width 250ms var(--ease-out),
+    height 250ms var(--ease-out);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

@@ -92,3 +92,6 @@ export const Expand =({ size, className }: P) => (
 export const Nodes = ({ size, className }: P) => (
   <svg {...base(size)} className={className}><rect x="3" y="4" width="7" height="6" rx="1.5" /><rect x="14" y="14" width="7" height="6" rx="1.5" /><path d="M6.5 10v3.5a2 2 0 0 0 2 2H14" /></svg>
 )
+export const Compass = ({ size, className }: P) => (
+  <svg {...base(size)} className={className}><circle cx="12" cy="12" r="9" /><path d="m15.5 8.5-2 5-5 2 2-5z" /></svg>
+)
