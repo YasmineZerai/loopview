@@ -33,7 +33,8 @@ pip install loopview-sdk
 
 ```python
 import loopview_sdk
-loopview_sdk.connect()   # at the start of your program
+
+loopview_sdk.connect()  # at the start of your program
 ```
 
 `connect()` switches on the OpenTelemetry instrumentation of every agent framework and model
