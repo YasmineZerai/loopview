@@ -121,18 +121,16 @@ Set up loopview (https://github.com/YasmineZerai/loopview) in this project so I 
 debug my AI agent's runs as a live graph. loopview is a local debugger that reads
 OpenTelemetry traces; its README explains everything below in more detail.
 
-1. Install and start loopview outside this repository (it isn't on PyPI yet). It needs
-   Python 3.11+, uv and Node 22+. Clone it next to this project, not inside it:
-     git clone https://github.com/YasmineZerai/loopview ../loopview
-     cd ../loopview/ui && npm install && npm run build
-     cd ../server && uv run loopview --no-browser
+1. Start loopview, outside this project's dependencies. It needs uv
+   (https://docs.astral.sh/uv/):
+     uvx loopview --no-browser
    Keep that server running in the background. It serves the UI and receives traces
    on http://127.0.0.1:4318.
 2. Find what the agent in this project is built with (LangGraph/LangChain, Pydantic AI,
    CrewAI, the OpenAI Agents SDK, or a loop written by hand on the OpenAI or Anthropic
    SDK) and where it starts.
 3. Add to this project's environment, with the package manager it already uses:
-     loopview-sdk @ git+https://github.com/YasmineZerai/loopview#subdirectory=sdk
+     loopview-sdk
    plus the instrumentation package for the framework, from the table in the
    "Connect your agent" section of loopview's README (Pydantic AI needs none).
 4. At the very start of the entry point, before any agent or model client is created,
@@ -153,12 +151,10 @@ OpenTelemetry traces; its README explains everything below in more detail.
 
 ## Quick start
 
-Requirements: Python 3.11+, [uv](https://docs.astral.sh/uv/) and Node 22+ (Node only to build the UI once).
+With [uv](https://docs.astral.sh/uv/) installed:
 
 ```sh
-git clone https://github.com/YasmineZerai/loopview
-cd loopview/ui && npm install && npm run build
-cd ../server && uv run loopview demo
+uvx loopview demo
 ```
 
 Your browser opens on a recorded multi-agent run. No API key needed. Press <kbd>space</kbd> to replay it.
@@ -166,10 +162,10 @@ Your browser opens on a recorded multi-agent run. No API key needed. Press <kbd>
 To watch your own agent, start it without `demo`:
 
 ```sh
-uv run loopview      # UI and OTLP endpoint on http://127.0.0.1:4318
+uvx loopview      # UI and OTLP endpoint on http://127.0.0.1:4318
 ```
 
-then connect your agent with one line (next section). Once published to PyPI, this becomes `uvx loopview`.
+then connect your agent with one line (next section). Without uv, `pip install loopview` and run `loopview`. To run from a clone instead, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Connect your agent
 
@@ -178,7 +174,7 @@ loopview receives standard OpenTelemetry traces at **`http://127.0.0.1:4318/v1/t
 **1. Install the SDK**, in your agent's environment:
 
 ```sh
-pip install "loopview-sdk @ git+https://github.com/YasmineZerai/loopview#subdirectory=sdk"
+pip install loopview-sdk
 ```
 
 and the instrumentation package for what your agent is built with: the piece that records what the framework does.
@@ -342,10 +338,8 @@ For UI work with hot reload, keep the server running and run `npm run dev` in `u
 
 ## Roadmap
 
-- Publish to PyPI, so it starts with `uvx loopview`.
 - OTLP over gRPC.
 - Recorded fixtures for more frameworks: LlamaIndex, smolagents, AutoGen, Google ADK, and JavaScript agents.
-- Publish `loopview-sdk` to PyPI.
 - A TypeScript `loopview-sdk` for Node agents.
 - Comparing two runs of the same agent side by side.
 - Cost per tool in the cost tree: how much each tool's definition and results cost across a run (the Tools tab already estimates it for unused tools).

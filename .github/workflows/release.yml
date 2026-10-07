@@ -1,0 +1,108 @@
+name: Release
+
+# Publishes loopview and loopview-sdk to PyPI when a version tag is pushed:
+#   git tag v0.1.0 && git push origin v0.1.0
+# The tag must match the version in server/pyproject.toml. loopview-sdk is versioned on its
+# own: it is published when its version is new, and skipped when PyPI already has it.
+#
+# Uploads use PyPI trusted publishing (no API token stored here). One-time setup, for each
+# of the two projects, on https://pypi.org/manage/account/publishing/ : add a (pending)
+# publisher with owner YasmineZerai, repository loopview, workflow release.yml and
+# environment pypi. Then create the environment "pypi" in Settings -> Environments.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Tag matches the server version
+        run: |
+          version=$(python3 -c "import tomllib; print(tomllib.load(open('server/pyproject.toml', 'rb'))['project']['version'])")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match server/pyproject.toml version $version"
+            exit 1
+          fi
+
+      - run: cd server && uv sync --locked && uv run pytest
+      - run: cd sdk && uv sync --locked && uv run pytest
+
+      # The server wheel ships the built UI, so `uvx loopview` works without Node.
+      - run: cd ui && npm ci && npm run build
+      - run: cd server && uv build
+      - run: cd sdk && uv build
+
+      - name: Wheel contains the UI and starts
+        run: |
+          unzip -l server/dist/*.whl | grep -q 'loopview/static/index.html'
+          unzip -l server/dist/*.whl | grep -q 'loopview/demo_data/flagship.otlp.jsonl'
+          uvx --from server/dist/*.whl loopview --version
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: loopview-dist
+          path: server/dist/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: loopview-sdk-dist
+          path: sdk/dist/
+
+  publish-loopview:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/loopview
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: loopview-dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  publish-sdk:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/loopview-sdk
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: loopview-sdk-dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true
+
+  github-release:
+    needs: [publish-loopview, publish-sdk]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist/
+          merge-multiple: true
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes

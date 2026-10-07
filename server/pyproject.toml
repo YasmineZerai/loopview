@@ -8,12 +8,29 @@ authors = [
     { name = "YasmineZerai", email = "zeraiyasmine7@gmail.com" }
 ]
 requires-python = ">=3.11"
+keywords = ["ai-agents", "llm", "opentelemetry", "observability", "debugging", "tracing"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Debuggers",
+    "Topic :: System :: Monitoring",
+]
 dependencies = [
     "fastapi>=0.115",
     "uvicorn>=0.30",
     "pydantic>=2.7",
     "opentelemetry-proto>=1.45",
 ]
+
+[project.urls]
+Homepage = "https://github.com/YasmineZerai/loopview"
+Demo = "https://yasminezerai.github.io/loopview/"
+Documentation = "https://github.com/YasmineZerai/loopview#readme"
+Issues = "https://github.com/YasmineZerai/loopview/issues"
 
 [project.scripts]
 loopview = "loopview.cli:main"
