@@ -108,7 +108,7 @@ export function CostTree() {
           >
             {allOpen ? 'Fold all steps' : 'Open all steps'}
           </button>
-          <div className="flex rounded-md border border-border bg-surface p-0.5 text-[11px]">
+          <div data-tour="cost-unit" className="flex rounded-md border border-border bg-surface p-0.5 text-[11px]">
             {(['dollars', 'tokens'] as const).map((u) => (
               <button
                 key={u}

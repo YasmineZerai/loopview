@@ -35,11 +35,21 @@ interface Scene {
   selected?: string | null
   about?: boolean // the "About this run" card, folded while the graph is being shown
   dock?: boolean // the playback bar and timeline at the bottom
+  costUnit?: 'dollars' | 'tokens'
 }
 
 /** Put the canvas in a known state, so a step looks the same reached forwards or back.
  * Activity is set without saving it: the visitor's own setting comes back at the end. */
-function scene({ view = 'graph', activity = false, expandAll = false, expanded = [], selected = null, about = false, dock = false }: Scene = {}) {
+function scene({
+  view = 'graph',
+  activity = false,
+  expandAll = false,
+  expanded = [],
+  selected = null,
+  about = false,
+  dock = false,
+  costUnit = 'dollars',
+}: Scene = {}) {
   const { playback } = useStore.getState()
   useStore.setState({
     view,
@@ -49,6 +59,7 @@ function scene({ view = 'graph', activity = false, expandAll = false, expanded =
     selectedKey: selected,
     highlightStep: null,
     dockOpen: dock, // set without saving it, like Activity
+    costUnit,
     playback: { ...playback, playing: false, time: LIVE },
   })
   useDemo.getState().setAboutOpen(about)
@@ -90,7 +101,7 @@ function Legend({ children }: { children: React.ReactNode }) {
 function Item({ mark = null, children }: { mark?: React.ReactNode; children: React.ReactNode }) {
   return (
     <li className="flex items-start gap-2.5">
-      <span className="flex h-[18px] w-8 shrink-0 items-center justify-center">{mark}</span>
+      <span className="flex h-[18px] w-12 shrink-0 items-center justify-center">{mark}</span>
       <span className="min-w-0">{children}</span>
     </li>
   )
@@ -501,6 +512,30 @@ const STEPS: Step[] = [
     enter: () => scene({ view: 'cost', activity: true }),
   },
   {
+    target: 'cost-unit',
+    title: 'Dollars or tokens',
+    body: (
+      <Legend>
+        <Item mark={<Key>$</Key>}>
+          <B>Dollars</B>: what each branch cost, at the provider's list price
+        </Item>
+        <Item mark={<Key>tokens</Key>}>
+          <B>Tokens</B>: how many went where; for models with no price, or to compare prompts
+        </Item>
+        <Item mark={<span className="font-mono text-[10.5px] text-muted">$0.08</span>}>
+          <B>Under the total</B>, the other one, so you always see both
+        </Item>
+      </Legend>
+    ),
+    footer: 'Click either side of the switch, top right of the Cost tab.',
+    watch: 'Watch: switching to tokens, then back',
+    enter: () => scene({ view: 'cost', activity: true }),
+    acts: [
+      [900, () => useStore.setState({ costUnit: 'tokens' })],
+      [2600, () => useStore.setState({ costUnit: 'dollars' })],
+    ],
+  },
+  {
     target: 'tools-findings',
     title: 'Tools, across many runs',
     body: (
@@ -610,16 +645,20 @@ export function Tour() {
   const { fitView } = useReactFlow()
 
   // While the tour runs: the whole run on screen, not mid-replay. Afterwards: the
-  // visitor's own Activity and Expand settings, on the graph, nothing selected.
+  // visitor's own settings (saved when the tour started, before its first step changed
+  // them), on the graph, nothing selected.
   useEffect(() => {
     if (!active) return
-    const { activity, expandAll, dockOpen, setPlayback } = useStore.getState()
-    const { aboutOpen, setAboutOpen } = useDemo.getState()
-    setPlayback({ playing: false, time: LIVE })
+    useStore.getState().setPlayback({ playing: false, time: LIVE })
     demoCard = null
     return () => {
-      useStore.setState({ activity, expandAll, dockOpen, expanded: new Set(), selectedKey: null, highlightStep: null, view: 'graph' })
-      setAboutOpen(aboutOpen)
+      const saved = useDemo.getState().tourSaved
+      if (saved) {
+        const { aboutOpen, ...settings } = saved
+        useStore.setState(settings)
+        useDemo.getState().setAboutOpen(aboutOpen)
+      }
+      useStore.setState({ expanded: new Set(), selectedKey: null, highlightStep: null, view: 'graph' })
       // The tour zoomed and panned; frame the whole run again once the cards have closed.
       window.setTimeout(() => fitView({ duration: 400, padding: 0.12 }), 300)
     }

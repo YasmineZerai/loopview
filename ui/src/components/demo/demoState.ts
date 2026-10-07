@@ -7,8 +7,24 @@ import { demoCatalog, STATIC_DEMO, type DemoAbout } from '../../api'
 import { useSelectedRun, useStore } from '../../store'
 import { togglePlay } from '../PlaybackBar'
 
+/** The visitor's settings the tour changes while it shows things, given back at the end. */
+export interface TourSaved {
+  activity: boolean
+  expandAll: boolean
+  dockOpen: boolean
+  costUnit: 'dollars' | 'tokens'
+  aboutOpen: boolean
+}
+
+/** Taken when the tour starts, before its first step sets the scene. */
+function saveSettings(aboutOpen: boolean): TourSaved {
+  const { activity, expandAll, dockOpen, costUnit } = useStore.getState()
+  return { activity, expandAll, dockOpen, costUnit, aboutOpen }
+}
+
 interface DemoState {
   tourStep: number | null // null: no tour on screen
+  tourSaved: TourSaved | null
   aboutOpen: boolean
   startTour: () => void
   setTourStep: (step: number) => void
@@ -19,8 +35,9 @@ interface DemoState {
 export const useDemo = create<DemoState>((set) => ({
   // The tour is the first thing every visit shows; the Tour button brings it back.
   tourStep: STATIC_DEMO ? 0 : null,
+  tourSaved: STATIC_DEMO ? saveSettings(false) : null,
   aboutOpen: false, // folded into a button until asked for, so the graph has the room
-  startTour: () => set({ tourStep: 0 }),
+  startTour: () => set((s) => ({ tourStep: 0, tourSaved: saveSettings(s.aboutOpen) })),
   setTourStep: (tourStep) => set({ tourStep }),
   endTour: () => set({ tourStep: null }),
   setAboutOpen: (aboutOpen) => set({ aboutOpen }),
