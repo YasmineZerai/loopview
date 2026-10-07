@@ -10,6 +10,7 @@ import {
   afterErrorBar,
   DEFAULT_SORT,
   describeAfterError,
+  findings,
   formatRate,
   MOVES,
   nextSort,
@@ -89,8 +90,10 @@ export function ToolsView() {
         {state === 'failed' && <Note>Couldn't load the tools report. Is the loopview server still running?</Note>}
         {state === 'no-runs' && <Note>No runs yet.</Note>}
         {state === 'no-calls' && <Note>No finished tool calls in {scope === 'session' ? 'this session' : 'these runs'} yet.</Note>}
+        {STATIC_DEMO && <DemoIntro />}
         {state === 'ready' && (
           <>
+            <Findings report={report!} />
             <ToolTable tools={report!.tools} />
             <NeverCalled report={report!} />
           </>
@@ -114,6 +117,34 @@ function Headline({ text }: { text: string }) {
         ),
       )}
     </>
+  )
+}
+
+/** In the demo: what these numbers are computed from, and what to do with them. */
+function DemoIntro() {
+  return (
+    <p className="mt-3 max-w-[760px] text-[12.5px] leading-relaxed text-muted">
+      A trace shows one run; this tab reads all of them. Here: the five examples, plus 20 read-only tasks a Pydantic AI agent
+      ran against GitHub's official MCP server. Click a tool to see its errors, what the agent did next, and to open any call
+      in its run.
+    </p>
+  )
+}
+
+/** The headline findings, as cards above the table. */
+function Findings({ report }: { report: ToolsReport }) {
+  const cards = findings(report)
+  if (cards.length === 0) return null
+  return (
+    <section data-tour="tools-findings" className="mt-5 grid gap-3 md:grid-cols-3" aria-label="Findings">
+      {cards.map((f) => (
+        <div key={f.id} className="rounded-lg border border-border bg-surface p-4">
+          <div className="view-ink font-mono text-[24px] font-semibold leading-none tracking-tight">{f.figure}</div>
+          <div className="mt-1.5 text-[13px] font-medium leading-snug">{f.title}</div>
+          <p className="mt-1.5 text-[12px] leading-relaxed text-muted">{f.detail}</p>
+        </div>
+      ))}
+    </section>
   )
 }
 

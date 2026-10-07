@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import toolsJson from '../test-data/tools.json'
 import type { AfterError, ToolStats, ToolsReport } from '../types'
-import { afterErrorBar, DEFAULT_SORT, describeAfterError, nextSort, roughly, sortTools, summarySentence, viewState } from './toolsModel'
+import { afterErrorBar, DEFAULT_SORT, describeAfterError, findings, nextSort, roughly, sortTools, summarySentence, viewState } from './toolsModel'
 
 // The report over every recorded fixture, computed by the server's real code.
 const recorded = toolsJson as unknown as ToolsReport
@@ -115,5 +115,37 @@ describe('empty states', () => {
     expect(viewState(report({ runs: 0, tool_calls: 0 }), false)).toBe('no-runs')
     expect(viewState(report({ tool_calls: 0 }), false)).toBe('no-calls')
     expect(viewState(recorded, false)).toBe('ready')
+  })
+})
+
+describe('findings', () => {
+  it('sums what the agent did after errors across tools', () => {
+    const r = report({ errors: 5 })
+    r.tools = [
+      { ...tool('a', 10, 3), after_error: { ...none, fixed: 2, fixed_succeeded: 1, blind_retry: 1 } },
+      { ...tool('b', 10, 2), after_error: { ...none, switched: 2 } },
+    ]
+    const recovery = findings(r).find((f) => f.id === 'recovery')!
+    expect(recovery.figure).toBe('4 of 5')
+    expect(recovery.detail).toBe('After an error, it fixed its arguments 2 times (1 worked), switched tool 2 times, retried blindly 1 time.')
+  })
+
+  it('names the biggest unused tool and the heaviest result', () => {
+    const r = report({}, {
+      never_called: [
+        { name: 'small', definition_tokens_estimate: 300, carried_by_model_calls: 3 },
+        { name: 'big', definition_tokens_estimate: 21_560, carried_by_model_calls: 30 },
+      ],
+      tools: [tool('a', 1, 0, 120), tool('b', 1, 0, 4321), tool('c', 1, 0, null)],
+    })
+    const byId = new Map(findings(r).map((f) => [f.id, f]))
+    expect(byId.get('unused')!.figure).toBe('~180,000')
+    expect(byId.get('unused')!.detail).toContain('The biggest, big, costs ~22,000 on its own.')
+    expect(byId.get('heaviest')!.title).toBe('tokens per b result, on average')
+  })
+
+  it('says nothing about unused tools when the tool list is not recorded', () => {
+    const ids = findings(report({ errors: 0 }, { tool_list_recorded: false })).map((f) => f.id)
+    expect(ids).toEqual(['heaviest'])
   })
 })

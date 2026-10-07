@@ -86,6 +86,70 @@ export function summarySentence(report: ToolsReport): string {
   return parts.join(' ')
 }
 
+/** One headline finding over the whole report, drawn as a card above the table. */
+export interface Finding {
+  id: 'recovery' | 'unused' | 'heaviest'
+  figure: string // the number, big
+  title: string // what the number is
+  detail: string // why it matters
+}
+
+/** What the report says that no single trace would: how the agent copes with
+ * errors, what unused tools cost and which results crowd the context. */
+export function findings(report: ToolsReport): Finding[] {
+  const out: Finding[] = []
+  const errors = report.summary.errors
+  if (errors > 0) {
+    const total = report.tools.reduce(
+      (sum, t) => ({
+        blind_retry: sum.blind_retry + t.after_error.blind_retry,
+        fixed: sum.fixed + t.after_error.fixed,
+        fixed_succeeded: sum.fixed_succeeded + t.after_error.fixed_succeeded,
+        switched: sum.switched + t.after_error.switched,
+        gave_up: sum.gave_up + t.after_error.gave_up,
+      }),
+      { blind_retry: 0, fixed: 0, fixed_succeeded: 0, switched: 0, gave_up: 0 },
+    )
+    const changed = total.fixed + total.switched
+    const next = [
+      total.fixed > 0 && `fixed its arguments ${plural(total.fixed, 'time')} (${total.fixed_succeeded} worked)`,
+      total.switched > 0 && `switched tool ${plural(total.switched, 'time')}`,
+      total.blind_retry > 0 && `retried blindly ${plural(total.blind_retry, 'time')}`,
+      total.gave_up > 0 && `gave up ${plural(total.gave_up, 'time')}`,
+    ].filter(Boolean)
+    out.push({
+      id: 'recovery',
+      figure: `${changed} of ${errors}`,
+      title: `tool ${errors === 1 ? 'error' : 'errors'} led the agent to change course`,
+      detail: next.length ? `After an error, it ${next.join(', ')}.` : 'No tool was called after these errors.',
+    })
+  }
+  const s = report.summary
+  if (report.tool_list_recorded && s.never_called_count > 0) {
+    const biggest = [...report.never_called].sort((a, b) => b.definition_tokens_estimate - a.definition_tokens_estimate)[0]
+    out.push({
+      id: 'unused',
+      figure: `~${roughly(s.never_called_tokens_estimate)}`,
+      title: `tokens spent describing ${plural(s.never_called_count, 'tool')} the model never called`,
+      detail:
+        `About ${roughly(s.never_called_tokens_per_run_estimate)} per run: their definitions ride along with every model call. ` +
+        (biggest ? `The biggest, ${biggest.name}, costs ~${roughly(biggest.definition_tokens_estimate)} on its own.` : ''),
+    })
+  }
+  const heaviest = report.tools
+    .filter((t) => t.avg_result_tokens_estimate !== null)
+    .sort((a, b) => b.avg_result_tokens_estimate! - a.avg_result_tokens_estimate!)[0]
+  if (heaviest) {
+    out.push({
+      id: 'heaviest',
+      figure: `~${roughly(heaviest.avg_result_tokens_estimate!)}`,
+      title: `tokens per ${heaviest.name} result, on average`,
+      detail: 'The largest tool output. It stays in the context, and is paid for again, on every later model call of the run.',
+    })
+  }
+  return out
+}
+
 export type ViewState = 'loading' | 'failed' | 'no-runs' | 'no-calls' | 'ready'
 
 export function viewState(report: ToolsReport | null, failed: boolean): ViewState {
