@@ -9,6 +9,7 @@ import { ReactFlowProvider, useReactFlow } from '@xyflow/react'
 import { useEffect } from 'react'
 import { api, STATIC_DEMO, subscribe } from './api'
 import { useDemo, useDemoAutoplay } from './components/demo/demoState'
+import { PhoneNote } from './components/demo/PhoneNote'
 import { RunAbout } from './components/demo/RunAbout'
 import { Tour } from './components/demo/Tour'
 import { CostTree } from './components/cost/CostTree'
@@ -22,6 +23,7 @@ import { RunList } from './components/RunList'
 import { StatusMark } from './components/StatusMark'
 import { Timeline } from './components/Timeline'
 import { useSelectedRun, useStore, type View } from './store'
+import { useIsPhone } from './phone'
 import { formatDuration } from './theme'
 
 export default function App() {
@@ -32,31 +34,40 @@ export default function App() {
   const sidebarOpen = useStore((s) => s.sidebarOpen)
   const dockOpen = useStore((s) => s.dockOpen)
   const view = useStore((s) => s.view)
+  const phone = useIsPhone()
+  // No room for the timeline on a phone; the floating control still plays and pauses.
+  const dock = dockOpen && !phone
 
   return (
     <ReactFlowProvider>
       <KeyboardShortcuts />
       <div className="flex h-full flex-col bg-canvas text-text">
         <TopBar />
-        <div className="flex min-h-0 flex-1">
+        <div className="relative flex min-h-0 flex-1">
+          {/* On a phone the run list slides over the graph instead of taking its width. */}
+          {phone && sidebarOpen && hasRuns && (
+            <div className="fade-in absolute inset-0 z-30 bg-black/30" onClick={() => useStore.getState().toggleSidebar()} />
+          )}
           <aside
             data-tour="runs"
-            className={`shrink-0 overflow-hidden border-r border-border bg-surface/70 transition-[width] duration-250 ease-out ${sidebarOpen && hasRuns ? 'w-64' : 'w-0'}`}
+            className={`shrink-0 overflow-hidden border-r border-border bg-surface/70 transition-[width] duration-250 ease-out phone:absolute phone:inset-y-0 phone:left-0 phone:z-40 phone:bg-surface phone:shadow-2xl ${sidebarOpen && hasRuns ? 'w-64' : 'w-0 phone:border-r-0'}`}
           >
             <div className="h-full w-64">
               <RunList />
             </div>
           </aside>
           <main className="relative flex min-w-0 flex-1 flex-col">
+            {STATIC_DEMO && phone && <PhoneNote />}
             <div data-tour="canvas" className="relative min-h-0 flex-1 overflow-hidden">
               {hasRuns ? <GraphView /> : <EmptyState />}
               {hasRuns && view === 'cost' && <CostTree />}
               {hasRuns && view === 'tools' && <ToolsView />}
-              {hasRuns && !dockOpen && <MiniPlayback />}
+              {/* On a phone it would cover the Cost and Tools content, where it plays nothing. */}
+              {hasRuns && !dock && (view === 'graph' || !phone) && <MiniPlayback />}
               {STATIC_DEMO && hasRuns && view === 'graph' && <RunAbout />}
               <DetailsPanel />
             </div>
-            {hasRuns && dockOpen && (
+            {hasRuns && dock && (
               <div data-tour="timeline" className="h-[256px] shrink-0 border-t border-border bg-surface/70">
                 <PlaybackBar />
                 <div className="h-[208px] border-t border-border">
@@ -92,17 +103,18 @@ function TopBar() {
   const control = 'flex items-center gap-1.5 rounded-md px-2 py-1 text-[11.5px] text-muted hover:bg-overlay hover:text-text'
 
   return (
-    <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border bg-surface px-3">
+    // On a phone: icons instead of labels, and only what fits (no Expand, Fit or run name).
+    <header className="flex h-12 shrink-0 items-center gap-3 overflow-hidden border-b border-border bg-surface px-3 phone:gap-1.5 phone:px-2">
       <button className="rounded-md p-1.5 text-muted hover:bg-overlay hover:text-text" onClick={toggleSidebar} title="Toggle runs">
         <Sidebar size={16} />
       </button>
       <div className="flex items-center gap-2">
         <Logo size={18} />
-        <span className="text-[14px] font-semibold tracking-tight">loopview</span>
+        <span className="text-[14px] font-semibold tracking-tight phone:hidden">loopview</span>
       </div>
 
       {run && (
-        <nav className="ml-2 flex items-center gap-1 rounded-lg border border-border bg-canvas p-0.5" aria-label="Views">
+        <nav className="ml-2 flex items-center gap-1 rounded-lg border border-border bg-canvas p-0.5 phone:ml-0.5" aria-label="Views">
           {VIEWS.map(({ id, label, key, title, Icon }) => {
             const active = view === id
             return (
@@ -113,9 +125,10 @@ function TopBar() {
                 title={`${title} (${key})`}
                 aria-current={active ? 'page' : undefined}
                 style={{ '--tab': `var(--color-view-${id})` } as React.CSSProperties}
-                className={`view-tab flex items-center gap-1.5 rounded-md px-3 py-1 text-[13px] font-medium ${active ? 'is-active' : ''}`}
+                aria-label={label}
+                className={`view-tab flex items-center gap-1.5 rounded-md px-3 py-1 text-[13px] font-medium phone:px-2.5 phone:py-1.5 ${active ? 'is-active' : ''}`}
               >
-                <Icon size={14} className="view-tab-icon" /> {label}
+                <Icon size={14} className="view-tab-icon" /> <span className="phone:hidden">{label}</span>
               </button>
             )
           })}
@@ -123,7 +136,7 @@ function TopBar() {
       )}
 
       {run && (
-        <div className="flex min-w-0 items-center gap-2 pl-1">
+        <div className="flex min-w-0 items-center gap-2 pl-1 max-lg:hidden">
           <StatusMark status={run.status} size={12} />
           <span className="truncate font-mono text-[12.5px]">{run.name}</span>
           {run.service_name && <span className="hidden truncate text-[11.5px] text-muted xl:inline">{run.service_name}</span>}
@@ -133,17 +146,17 @@ function TopBar() {
 
       <div className="ml-auto flex items-center gap-0.5">
         {STATIC_DEMO && (
-          <button className={`${control} mr-1`} onClick={useDemo.getState().startTour} title="A one-minute tour of loopview">
-            <Compass size={13} /> Tour
+          <button className={`${control} mr-1 phone:mr-0`} onClick={useDemo.getState().startTour} title="A one-minute tour of loopview" aria-label="Tour">
+            <Compass size={13} /> <span className="max-lg:hidden">Tour</span>
           </button>
         )}
         {STATIC_DEMO ? (
           <a
-            className="mr-2 flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-[11.5px] text-muted hover:text-text"
+            className="mr-2 flex shrink-0 items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-[11.5px] whitespace-nowrap text-muted hover:text-text phone:mr-1"
             href="https://github.com/YasmineZerai/loopview"
             title="These are recorded runs. Install loopview to watch your own agents live."
           >
-            <span className="h-1.5 w-1.5 rounded-full bg-accent" /> Recorded demo · Get loopview
+            <span className="h-1.5 w-1.5 rounded-full bg-accent" /> <span className="max-lg:hidden">Recorded demo · </span>Get loopview
           </a>
         ) : (
           <span className="mr-2 flex items-center gap-1.5 text-[11px] text-muted" title={connected ? 'Receiving live updates' : 'Reconnecting'}>
@@ -158,16 +171,17 @@ function TopBar() {
               className={`${control} ${activity ? 'text-text' : ''}`}
               onClick={toggleActivity}
               aria-pressed={activity}
+              aria-label="Activity"
               title="Follow what happens: the running cards open, close when done, and the view zooms in on them (a)"
             >
-              <Activity size={13} /> Activity
+              <Activity size={13} /> <span className="phone:hidden">Activity</span>
               <span className={`ml-0.5 h-1.5 w-1.5 rounded-full ${activity ? 'bg-[var(--color-view-graph)]' : 'bg-border'}`} />
             </button>
-            <button data-tour="expand" className={`${control} ${expandAll ? 'text-text' : ''}`} onClick={toggleExpandAll} title="Show every step's calls inside the graph (e)">
-              <Expand size={13} /> {expandAll ? 'Collapse' : 'Expand'}
+            <button data-tour="expand" className={`${control} phone:hidden ${expandAll ? 'text-text' : ''}`} onClick={toggleExpandAll} aria-label={expandAll ? 'Collapse' : 'Expand'} title="Show every step's calls inside the graph (e)">
+              <Expand size={13} /> <span className="max-lg:hidden">{expandAll ? 'Collapse' : 'Expand'}</span>
             </button>
-            <button data-tour="fit" className={control} onClick={() => fitView({ duration: 300, padding: 0.12 })} title="Fit to screen (f)">
-              <Fit size={13} /> Fit
+            <button data-tour="fit" className={`${control} phone:hidden`} onClick={() => fitView({ duration: 300, padding: 0.12 })} aria-label="Fit" title="Fit to screen (f)">
+              <Fit size={13} /> <span className="max-lg:hidden">Fit</span>
             </button>
           </>
         )}
@@ -176,8 +190,8 @@ function TopBar() {
             <Download size={13} /> Export
           </a>
         )}
-        <span className="mx-1 h-4 w-px bg-border" />
-        <button className={control} onClick={toggleTheme} title={theme === 'light' ? 'Dark mode' : 'Light mode'}>
+        <span className="mx-1 h-4 w-px bg-border phone:hidden" />
+        <button className={`${control} phone:hidden`} onClick={toggleTheme} title={theme === 'light' ? 'Dark mode' : 'Light mode'}>
           {theme === 'light' ? <Moon size={13} /> : <Sun size={13} />}
         </button>
       </div>

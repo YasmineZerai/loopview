@@ -2,6 +2,7 @@
 
 import { useRef } from 'react'
 import { api, STATIC_DEMO, type DemoAbout } from '../api'
+import { isPhone } from '../phone'
 import { useStore } from '../store'
 import { formatDuration, timeAgo } from '../theme'
 import type { RunInfo } from '../types'
@@ -61,7 +62,15 @@ export function RunList() {
                   session {run.session_id!.slice(0, 12)} · {sessionCounts.get(run.session_id!)} runs
                 </div>
               )}
-              <RunItem run={run} about={catalog.get(run.id)} selected={run.id === selectedRunId} onClick={() => selectRun(run.id, true)} />
+              <RunItem
+                run={run}
+                about={catalog.get(run.id)}
+                selected={run.id === selectedRunId}
+                onClick={() => {
+                  selectRun(run.id, true)
+                  if (isPhone()) useStore.setState({ sidebarOpen: false }) // the drawer gets out of the way
+                }}
+              />
             </div>
           )
         })}

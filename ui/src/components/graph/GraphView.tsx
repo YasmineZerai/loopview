@@ -6,16 +6,18 @@ import {
   MarkerType,
   ReactFlow,
   useReactFlow,
+  useUpdateNodeInternals,
   type Edge,
   type Node,
 } from '@xyflow/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { activeCardKeys } from '../../graph/activity'
 import { buildGraph, collapseGraph } from '../../graph/buildGraph'
-import { computeLayout, hasCalls, type Layout } from '../../graph/layout'
+import { computeLayout, hasCalls, type Direction, type Layout } from '../../graph/layout'
 import { isExpanded, useSelectedRun, useStore } from '../../store'
 import { hueMap, NEUTRAL_HUE } from '../../theme'
 import type { Step } from '../../types'
+import { isPhone, useIsPortrait } from '../../phone'
 import { orderCalls } from '../CallViews'
 import { FlowEdge, type FlowFlowEdge } from './FlowEdge'
 import { GroupNode, type GroupFlowNode } from './GroupNode'
@@ -48,6 +50,9 @@ export function GraphView() {
   const focusRequest = useStore((s) => s.focusRequest)
   const { setSelectedKey, setHoverKey, toggleCollapsed, toggleExpanded, focusCard } = useStore.getState()
   const { fitBounds, getInternalNode, getZoom, setCenter } = useReactFlow()
+  const updateNodeInternals = useUpdateNodeInternals()
+  // On a portrait screen the graph flows top to bottom.
+  const direction: Direction = useIsPortrait() ? 'DOWN' : 'RIGHT'
 
   const fullGraph = useMemo(() => (loaded ? buildGraph(loaded.view, time) : null), [loaded, time])
   const graph = useMemo(() => (fullGraph ? collapseGraph(fullGraph, collapsed) : null), [fullGraph, collapsed])
@@ -115,7 +120,7 @@ export function GraphView() {
   graphRef.current = graph
   const expandedRef = useRef(expanded)
   expandedRef.current = expanded
-  const layoutKey = graph ? `${graph.structureKey}#${[...expanded].sort().join(',')}` : undefined
+  const layoutKey = graph ? `${graph.structureKey}#${[...expanded].sort().join(',')}#${direction}` : undefined
   useEffect(() => {
     const current = graphRef.current
     if (!current || current.nodes.length === 0) {
@@ -123,13 +128,21 @@ export function GraphView() {
       return
     }
     let cancelled = false
-    computeLayout(current, expandedRef.current).then((result) => {
+    computeLayout(current, expandedRef.current, direction).then((result) => {
       if (!cancelled) setLayout(result)
     })
     return () => {
       cancelled = true
     }
-  }, [layoutKey])
+  }, [layoutKey, direction])
+
+  // The handles move from the sides to the top and bottom when the direction
+  // flips; React Flow measures them again only when asked.
+  const layoutDirection = layout?.direction
+  useEffect(() => {
+    const ids = graphRef.current?.nodes.map((n) => n.key)
+    if (layoutDirection && ids?.length) requestAnimationFrame(() => updateNodeInternals(ids))
+  }, [layoutDirection, updateNodeInternals])
 
   // Keep the whole graph in view as it grows. Fit to the bounds ELK computed
   // rather than to measured nodes: right after a layout, React Flow has not
@@ -151,9 +164,11 @@ export function GraphView() {
     const y = Math.min(...boxes.map((b) => b.y))
     const width = Math.max(...boxes.map((b) => b.x + b.width)) - x
     const height = Math.max(...boxes.map((b) => b.y + b.height)) - y
-    // Frame at least a minimum area, so a one-node graph isn't blown up.
-    const w = Math.max(width, 760)
-    const h = Math.max(height, 420)
+    // Frame at least a minimum area, so a one-node graph isn't blown up; tall, when
+    // the graph flows down.
+    const down = layout.direction === 'DOWN'
+    const w = Math.max(width, down ? 420 : 760)
+    const h = Math.max(height, down ? 760 : 420)
     bounds.current = { x: x - (w - width) / 2, y: y - (h - height) / 2, width: w, height: h }
     fitBounds(bounds.current, { duration: 400, padding: 0.12 })
     fittedRun.current = runId
@@ -195,10 +210,13 @@ export function GraphView() {
         if (tries++ < 30) frame = requestAnimationFrame(attempt)
         return
       }
-      const zoom = Math.max(getZoom(), 0.9)
-      const panel = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--details-width')) || 0
       const { x, y } = node.internals.positionAbsolute
       const { width, height } = sizeOf(node)
+      // On a phone the details panel covers the whole canvas, so there is nothing to
+      // aim beside, and the card is zoomed only as far as the screen's width allows.
+      const phone = isPhone()
+      const zoom = phone ? Math.min(Math.max(getZoom(), 0.9), (window.innerWidth - 32) / width) : Math.max(getZoom(), 0.9)
+      const panel = phone ? 0 : parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--details-width')) || 0
       setCenter(x + width / 2 + panel / 2 / zoom, y + height / 2, { zoom, duration: 400 })
     }
     frame = requestAnimationFrame(attempt)
@@ -239,8 +257,9 @@ export function GraphView() {
         setCenter(cx, cy, { zoom: userZoom.current, duration: 500 })
         return
       }
-      const w = Math.max(right - left, FOLLOW_MIN_WIDTH)
-      const h = Math.max(bottom - top, FOLLOW_MIN_HEIGHT)
+      const down = layout?.direction === 'DOWN'
+      const w = Math.max(right - left, down ? FOLLOW_MIN_HEIGHT : FOLLOW_MIN_WIDTH)
+      const h = Math.max(bottom - top, down ? FOLLOW_MIN_WIDTH : FOLLOW_MIN_HEIGHT)
       fitBounds({ x: cx - w / 2, y: cy - h / 2, width: w, height: h }, { padding: 0.06, duration: 500 })
     }
     frame = requestAnimationFrame(follow)
@@ -261,6 +280,9 @@ export function GraphView() {
   const { nodes, edges } = useMemo(() => {
     if (!graph || !layout) return { nodes: [] as Node[], edges: [] as Edge[] }
     const flowNodes: (StepFlowNode | GroupFlowNode)[] = []
+    // From the layout drawn, not the screen: right after a rotation the old layout
+    // shows until the new one is ready.
+    const vertical = layout.direction === 'DOWN'
     const sorted = [...graph.nodes].sort((a, b) => a.depth - b.depth)
     const byKey = new Map(graph.nodes.map((n) => [n.key, n]))
     for (const node of sorted) {
@@ -282,6 +304,7 @@ export function GraphView() {
       const data = {
         node,
         hue,
+        vertical,
         highlighted: hoverKey === node.key || activeKeys.has(node.key),
         selected: selectedKey === node.key,
         onToggle: () => toggleCollapsed(node.key),
@@ -316,7 +339,7 @@ export function GraphView() {
         target: e.target,
         type: 'flow',
         zIndex: 1,
-        data: { edge: e, route: layout.routes.get(e.id), hue, active: running.has(e.target) },
+        data: { edge: e, route: layout.routes.get(e.id), hue, active: running.has(e.target), vertical },
         // Marker colours are SVG attributes, so they can't use CSS variables.
         markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14, color: theme === 'dark' ? '#52525b' : '#a1a1aa' },
       }

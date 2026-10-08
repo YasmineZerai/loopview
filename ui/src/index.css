@@ -1,5 +1,12 @@
 @import 'tailwindcss';
 
+/* A phone, held either way: narrow, or short (sideways). Kept in step with PHONE in phone.ts. */
+@custom-variant phone {
+  @media (max-width: 767px), (max-height: 500px) {
+    @slot;
+  }
+}
+
 /* Design tokens. Light is the default; [data-theme='dark'] below overrides them.
    Components only use these tokens, never raw colours, so both themes stay in sync. */
 @theme {

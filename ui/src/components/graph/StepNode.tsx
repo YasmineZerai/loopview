@@ -14,6 +14,7 @@ import { Chevron, Plus, Sparkle, Wrench } from '../icons'
 export type StepNodeData = {
   node: GraphNode
   hue: string
+  vertical: boolean // the graph flows top to bottom: handles on top and bottom
   highlighted: boolean
   selected: boolean
   onToggle?: () => void
@@ -27,7 +28,7 @@ export type StepNodeData = {
 export type StepFlowNode = Node<StepNodeData, 'step'>
 
 function StepNodeView({ data }: NodeProps<StepFlowNode>) {
-  const { node, hue, highlighted, selected, expanded } = data
+  const { node, hue, highlighted, selected, expanded, vertical } = data
   const running = node.status === 'running'
   const error = node.status === 'error'
   return (
@@ -41,8 +42,8 @@ function StepNodeView({ data }: NodeProps<StepFlowNode>) {
       ].join(' ')}
       style={{ '--hue': hue } as React.CSSProperties}
     >
-      <Handle type="target" position={Position.Left} className="!invisible" />
-      <Handle type="source" position={Position.Right} className="!invisible" />
+      <Handle type="target" position={vertical ? Position.Top : Position.Left} className="!invisible" />
+      <Handle type="source" position={vertical ? Position.Bottom : Position.Right} className="!invisible" />
       <span className="absolute inset-y-2 left-0 w-[3px] rounded-r-full" style={{ background: hue }} />
 
       <div className="flex items-center gap-2">

@@ -9,6 +9,7 @@ import { Minus } from '../icons'
 export type GroupNodeData = {
   node: GraphNode
   hue: string
+  vertical: boolean // the graph flows top to bottom: handles on top and bottom
   highlighted: boolean
   selected: boolean
   onToggle: () => void
@@ -17,7 +18,7 @@ export type GroupNodeData = {
 export type GroupFlowNode = Node<GroupNodeData, 'group'>
 
 function GroupNodeView({ data }: NodeProps<GroupFlowNode>) {
-  const { node, hue, selected, highlighted } = data
+  const { node, hue, selected, highlighted, vertical } = data
   const running = node.status === 'running'
   return (
     <div
@@ -28,8 +29,8 @@ function GroupNodeView({ data }: NodeProps<GroupFlowNode>) {
       ].join(' ')}
       style={{ '--hue': hue } as React.CSSProperties}
     >
-      <Handle type="target" position={Position.Left} className="!invisible" />
-      <Handle type="source" position={Position.Right} className="!invisible" />
+      <Handle type="target" position={vertical ? Position.Top : Position.Left} className="!invisible" />
+      <Handle type="source" position={vertical ? Position.Bottom : Position.Right} className="!invisible" />
       <div className="flex h-10 min-w-0 items-center gap-2 px-3.5">
         <StatusMark status={node.status} size={13} />
         <span className="hue-ink shrink-0 font-mono text-[13px] font-semibold">

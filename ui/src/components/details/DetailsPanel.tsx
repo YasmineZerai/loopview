@@ -26,7 +26,7 @@ export function DetailsPanel() {
   return (
     <aside
       data-tour="details"
-      className={`absolute inset-y-0 right-0 z-20 flex w-[var(--details-width)] max-w-[92vw] flex-col border-l border-border bg-surface/95 shadow-2xl backdrop-blur-md transition-transform duration-250 ease-out ${open ? 'translate-x-0' : 'translate-x-full'}`}
+      className={`absolute inset-y-0 right-0 z-20 flex w-[var(--details-width)] max-w-[92vw] flex-col phone:w-full phone:max-w-full border-l border-border bg-surface/95 shadow-2xl backdrop-blur-md transition-transform duration-250 ease-out ${open ? 'translate-x-0' : 'translate-x-full'}`}
     >
       {first && loaded && (
         <>
@@ -38,7 +38,7 @@ export function DetailsPanel() {
                 {executions.length} execution{executions.length > 1 ? 's' : ''} · {first.convention}
               </div>
             </div>
-            <button className="rounded-md p-1.5 text-muted hover:bg-overlay-strong hover:text-text" onClick={() => setSelectedKey(null)}>
+            <button className="rounded-md p-1.5 text-muted hover:bg-overlay-strong hover:text-text phone:-m-1 phone:p-2.5" onClick={() => setSelectedKey(null)} aria-label="Close">
               <Cross size={16} />
             </button>
           </header>

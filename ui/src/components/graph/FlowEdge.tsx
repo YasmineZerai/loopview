@@ -11,6 +11,7 @@ export type FlowEdgeData = {
   route: { x: number; y: number }[] | undefined
   hue: string
   active: boolean // its target is running right now
+  vertical: boolean // the graph flows top to bottom
 }
 
 export type FlowFlowEdge = Edge<FlowEdgeData, 'flow'>
@@ -24,13 +25,22 @@ function FlowEdgeView({ id, data, source, target, sourceX, sourceY, targetX, tar
     { x: sourceX, y: sourceY },
     { x: targetX, y: targetY },
   ]
-  // A loop arcs over both cards, so it needs their real tops: an expanded card
-  // is much taller than its handle position suggests.
+  // A loop arcs past both cards, so it needs their real edges: an expanded card is
+  // much bigger than its handle position suggests. Over their tops when the graph
+  // flows right; beside their right sides when it flows down.
   const sourceNode = useInternalNode(source)
   const targetNode = useInternalNode(target)
-  const tops = [sourceNode, targetNode].map((n) => n?.internals.positionAbsolute.y).filter((y) => y !== undefined)
-  const cardsTop = tops.length ? Math.min(...tops) : Math.min(sourceY, targetY) - 30
-  const arc = loop ? loopArc(sourceX, sourceY, targetX, targetY, cardsTop) : null
+  const cards = [sourceNode, targetNode].filter((n) => n !== undefined)
+  let arc = null
+  if (loop && data!.vertical) {
+    const rights = cards.map((n) => n.internals.positionAbsolute.x + (n.measured.width ?? n.width ?? 0))
+    const cardsRight = rights.length ? Math.max(...rights) : Math.max(sourceX, targetX) + 30
+    arc = loopArcDown(sourceX, sourceY, targetX, targetY, cardsRight)
+  } else if (loop) {
+    const tops = cards.map((n) => n.internals.positionAbsolute.y)
+    const cardsTop = tops.length ? Math.min(...tops) : Math.min(sourceY, targetY) - 30
+    arc = loopArc(sourceX, sourceY, targetX, targetY, cardsTop)
+  }
   const path = arc ? arc.path : roundedPath(points)
   const particles = useParticles(edge.count)
   const label = arc ? arc.top : pointAtHalfLength(points)
@@ -68,6 +78,14 @@ function loopArc(sx: number, sy: number, tx: number, ty: number, cardsTop: numbe
   const top = cardsTop - 12 - Math.abs(sx - tx) * 0.06
   const path = `M ${sx} ${sy} C ${sx + 48} ${sy} ${sx + 48} ${top} ${(sx + tx) / 2} ${top} S ${tx - 48} ${ty} ${tx} ${ty}`
   return { path, top: { x: (sx + tx) / 2, y: top } }
+}
+
+/** The same loop when the graph flows down: from the source's bottom, out past the
+ * right of the nodes, back into the target's top. */
+function loopArcDown(sx: number, sy: number, tx: number, ty: number, cardsRight: number) {
+  const side = cardsRight + 12 + Math.abs(sy - ty) * 0.06
+  const path = `M ${sx} ${sy} C ${sx} ${sy + 48} ${side} ${sy + 48} ${side} ${(sy + ty) / 2} S ${tx} ${ty - 48} ${tx} ${ty}`
+  return { path, top: { x: side, y: (sy + ty) / 2 } }
 }
 
 /** The point halfway along a polyline, where the count label sits. */

@@ -7,6 +7,7 @@
 import { useReactFlow } from '@xyflow/react'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { LIVE } from '../../graph/buildGraph'
+import { isPhone, useIsPhone } from '../../phone'
 import { useStore, type View } from '../../store'
 import { Check, ChevronDown, Cross, Logo } from '../icons'
 import { useDemo } from './demoState'
@@ -21,6 +22,7 @@ interface Step {
   enter?: () => void // the scene, set at once
   acts?: [number, (flow: Flow) => void][] // the demonstration: ms after entering, action
   footer?: React.ReactNode
+  phone?: boolean // also shown on a phone, where the timeline, Expand and Fit are hidden
 }
 
 const REPO = 'https://github.com/YasmineZerai/loopview'
@@ -213,6 +215,7 @@ const ROLES: [string, string][] = [
 const STEPS: Step[] = [
   {
     title: 'Watch your AI agents run',
+    phone: true,
     body: (
       <Legend>
         <Item mark={<AgentBox />}>
@@ -276,6 +279,7 @@ const STEPS: Step[] = [
   {
     target: 'canvas',
     title: 'Reading the graph',
+    phone: true,
     body: (
       <Legend>
         <Item mark={<AgentBox />}>
@@ -310,6 +314,7 @@ const STEPS: Step[] = [
   {
     target: cardElement,
     title: 'Open a card',
+    phone: true,
     body: (
       <Legend>
         <Item mark={<Chevron />}>
@@ -488,6 +493,7 @@ const STEPS: Step[] = [
   {
     target: 'tab-cost',
     title: 'Where the money went',
+    phone: true,
     body: (
       <Legend>
         <Item mark={<Branch />}>
@@ -538,6 +544,7 @@ const STEPS: Step[] = [
   {
     target: 'tools-findings',
     title: 'Tools, across many runs',
+    phone: true,
     body: (
       <Legend>
         <Item mark={<Swatch color="var(--color-state-error)" />}>
@@ -564,6 +571,7 @@ const STEPS: Step[] = [
   },
   {
     title: 'Now, your own agents',
+    phone: true,
     body: (
       <Legend>
         <Item mark={<Key>1</Key>}>
@@ -590,6 +598,9 @@ const STEPS: Step[] = [
     enter: () => scene({ activity: true }),
   },
 ]
+
+// A phone gets the steps whose part of the UI is on its screen.
+const PHONE_STEPS = STEPS.filter((s) => s.phone)
 
 // --- placing the spotlight and the card --------------------------------------------------
 
@@ -625,6 +636,9 @@ function place(box: Box | null, w: number, h: number): { top: number; left: numb
   const clampX = (x: number) => Math.max(MARGIN, Math.min(x, vw - w - MARGIN))
   const clampY = (y: number) => Math.max(MARGIN, Math.min(y, vh - h - MARGIN))
   if (!box) return { top: clampY((vh - h) / 2), left: clampX((vw - w) / 2) }
+  // A phone has no room beside anything: the card docks at the bottom, or the top
+  // when the lit part is down there.
+  if (isPhone()) return { top: box.top > vh / 2 ? MARGIN : clampY(vh - h - MARGIN), left: MARGIN }
   const right = box.left + box.width
   const bottom = box.top + box.height
   if (right + GAP + w <= vw - MARGIN) return { top: clampY(box.top), left: right + GAP }
@@ -643,6 +657,7 @@ export function Tour() {
   const step = useDemo((s) => s.tourStep)
   const active = step !== null
   const { fitView } = useReactFlow()
+  const steps = useIsPhone() ? PHONE_STEPS : STEPS
 
   // While the tour runs: the whole run on screen, not mid-replay. Afterwards: the
   // visitor's own settings (saved when the tour started, before its first step changed
@@ -665,14 +680,15 @@ export function Tour() {
   }, [active, fitView])
 
   if (step === null) return null
-  return <TourStep index={step} />
+  // Turning a phone to landscape can switch lists mid-tour; stay within the shorter one.
+  return <TourStep steps={steps} index={Math.min(step, steps.length - 1)} />
 }
 
-function TourStep({ index }: { index: number }) {
+function TourStep({ steps, index }: { steps: Step[]; index: number }) {
   const { setTourStep, endTour } = useDemo.getState()
   const flow = useReactFlow()
-  const step = STEPS[index]
-  const last = index === STEPS.length - 1
+  const step = steps[index]
+  const last = index === steps.length - 1
   const card = useRef<HTMLDivElement>(null)
   const [box, setBox] = useState<Box | null>(null)
   const [size, setSize] = useState({ w: 360, h: 240 })
@@ -716,7 +732,7 @@ function TourStep({ index }: { index: number }) {
   }, [index])
 
   const go = (to: number) => {
-    if (to >= STEPS.length) endTour()
+    if (to >= steps.length) endTour()
     else if (to >= 0) setTourStep(to)
   }
 
@@ -742,12 +758,12 @@ function TourStep({ index }: { index: number }) {
       <div
         ref={card}
         key={index}
-        className="fade-in absolute w-[360px] max-w-[calc(100vw-32px)] rounded-xl border border-border bg-surface p-4 text-[12.5px] leading-snug shadow-2xl transition-[top,left] duration-250 ease-out"
+        className="fade-in absolute w-[360px] max-w-[calc(100vw-32px)] rounded-xl phone:w-[calc(100vw-32px)] border border-border bg-surface p-4 text-[12.5px] leading-snug shadow-2xl transition-[top,left] duration-250 ease-out"
         style={pos}
       >
         <div className="mb-1 flex items-center justify-between text-[11px] text-muted">
           <span>
-            {index + 1} of {STEPS.length}
+            {index + 1} of {steps.length}
           </span>
           {!last && (
             <button className="rounded px-1 hover:text-text" onClick={endTour}>
@@ -774,7 +790,7 @@ function TourStep({ index }: { index: number }) {
         {step.footer && <div className="mt-3 border-t border-border pt-2.5 text-[11.5px] text-muted">{step.footer}</div>}
         <div className="mt-3.5 flex items-center gap-2">
           <div className="flex flex-1 gap-1" aria-hidden>
-            {STEPS.map((_, i) => (
+            {steps.map((_, i) => (
               <span
                 key={i}
                 className={`h-1.5 rounded-full transition-all duration-200 ${i === index ? 'w-4 bg-accent' : i < index ? 'w-1.5 bg-accent/40' : 'w-1.5 bg-border'}`}

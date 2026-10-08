@@ -45,7 +45,7 @@ export function MiniPlayback() {
       </span>
       <button
         onClick={toggleDock}
-        className="flex items-center gap-1 rounded-full px-2 py-1 text-[11.5px] text-muted hover:bg-overlay hover:text-text"
+        className="flex items-center gap-1 rounded-full px-2 py-1 text-[11.5px] text-muted hover:bg-overlay hover:text-text phone:hidden"
         title="Show the timeline (t)"
       >
         <ChevronUp size={13} /> Timeline

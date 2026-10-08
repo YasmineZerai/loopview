@@ -7,6 +7,7 @@
 import { create } from 'zustand'
 import { api, STATIC_DEMO } from './api'
 import { LIVE } from './graph/buildGraph'
+import { isPhone } from './phone'
 import type { NormalizedRun, RunInfo, RunUpdateEvent, Step, Transition } from './types'
 
 export interface LoadedRun {
@@ -114,7 +115,7 @@ export const useStore = create<State>((set, get) => ({
   // Slow enough to follow what happens; the hosted demo's recorded runs replay at 1x.
   playback: { time: LIVE, playing: false, speed: STATIC_DEMO ? 1 : 0.5 },
   connected: false,
-  sidebarOpen: true,
+  sidebarOpen: !isPhone(), // on a phone the run list is a drawer, closed until asked for
   theme: loadPref<Theme>('theme', 'light'),
   dockOpen: loadPref('dockOpen', false),
   activity: loadPref('activity', true),

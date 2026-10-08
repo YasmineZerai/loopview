@@ -26,7 +26,11 @@ export interface Box {
   height: number
 }
 
+/** Which way the flow reads: left to right, or top to bottom on a portrait screen. */
+export type Direction = 'RIGHT' | 'DOWN'
+
 export interface Layout {
+  direction: Direction
   boxes: Map<string, Box>
   // Edge routes in absolute coordinates, from ELK's orthogonal router.
   routes: Map<string, { x: number; y: number }[]>
@@ -73,7 +77,7 @@ export function hasCalls(node: GraphNode): boolean {
   return node.modelCalls > 0 || node.tools.length > 0
 }
 
-export async function computeLayout(graph: Graph, expanded: Set<string> = new Set()): Promise<Layout> {
+export async function computeLayout(graph: Graph, expanded: Set<string> = new Set(), direction: Direction = 'RIGHT'): Promise<Layout> {
   const children = new Map<string | null, GraphNode[]>()
   for (const node of graph.nodes) {
     const list = children.get(node.groupKey) ?? []
@@ -99,8 +103,8 @@ export async function computeLayout(graph: Graph, expanded: Set<string> = new Se
   }
 
   // Loops (back edges) are left out of the layout: the layout then only sees the
-  // forward flow, so steps read left to right in the order they first ran, and
-  // loops are drawn as arcs back over the nodes (see FlowEdge).
+  // forward flow, so steps read in the order they first ran (left to right, or top
+  // to bottom), and loops are drawn as arcs back past the nodes (see FlowEdge).
   const edges: ElkExtendedEdge[] = graph.edges.filter((e) => e.kind !== 'loop').map((e) => ({
     id: e.id,
     sources: [e.source],
@@ -111,7 +115,7 @@ export async function computeLayout(graph: Graph, expanded: Set<string> = new Se
     id: '__root__',
     layoutOptions: {
       'elk.algorithm': 'layered',
-      'elk.direction': 'RIGHT',
+      'elk.direction': direction,
       'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
       'elk.edgeRouting': 'ORTHOGONAL',
       'elk.layered.spacing.nodeNodeBetweenLayers': '64',
@@ -151,7 +155,7 @@ export async function computeLayout(graph: Graph, expanded: Set<string> = new Se
     for (const child of node.children ?? []) collect(child)
   }
   collect(result)
-  return { boxes, routes }
+  return { direction, boxes, routes }
 }
 
 /** An SVG path through points with rounded corners. */

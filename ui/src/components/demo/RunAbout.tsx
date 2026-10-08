@@ -19,7 +19,7 @@ export function RunAbout() {
       <button
         data-tour="about"
         onClick={() => setOpen(true)}
-        className="fade-in absolute bottom-4 left-4 z-10 flex items-center gap-1.5 rounded-full border border-border bg-surface/95 px-3 py-1.5 text-[12px] shadow-lg backdrop-blur hover:bg-surface"
+        className="fade-in absolute bottom-4 left-4 z-10 flex items-center gap-1.5 rounded-full phone:top-3 phone:bottom-auto phone:left-3 border border-border bg-surface/95 px-3 py-1.5 text-[12px] shadow-lg backdrop-blur hover:bg-surface"
       >
         <Compass size={13} className="text-accent" /> About this run <ChevronUp size={13} className="text-muted" />
       </button>
@@ -30,7 +30,7 @@ export function RunAbout() {
     <section
       data-tour="about"
       aria-label="About this run"
-      className="fade-in absolute bottom-4 left-4 z-10 flex max-h-[calc(100%-96px)] w-[340px] max-w-[calc(100%-32px)] flex-col rounded-xl border border-border bg-surface/95 text-[12.5px] leading-relaxed shadow-lg backdrop-blur"
+      className="fade-in absolute bottom-4 left-4 z-10 flex max-h-[calc(100%-96px)] phone:top-3 phone:bottom-auto phone:left-3 phone:max-h-[calc(100%-80px)] w-[340px] max-w-[calc(100%-32px)] flex-col rounded-xl border border-border bg-surface/95 text-[12.5px] leading-relaxed shadow-lg backdrop-blur"
     >
       <header className="flex items-start gap-2 px-3.5 pt-3">
         <div className="min-w-0 flex-1">
