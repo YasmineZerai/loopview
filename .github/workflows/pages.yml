@@ -31,6 +31,8 @@ jobs:
           cache-dependency-path: ui/package-lock.json
       # The recorded runs, normalized by the real server code from the fixtures.
       - run: cd server && uv sync --locked && uv run python -m loopview.devtools.dump_normalized ../ui/pages-public/demo --index
+      # The image link previews show (og:image in vite.config.ts).
+      - run: cp docs/social-preview.png ui/pages-public/
       - run: cd ui && npm ci && npm run build:pages
       - uses: actions/upload-pages-artifact@v3
         with:

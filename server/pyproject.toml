@@ -1,6 +1,6 @@
 [project]
 name = "loopview"
-version = "0.1.0"
+version = "0.1.1"
 description = "Watch your AI agents run as a live graph, from any OpenTelemetry trace."
 readme = "README.md"
 license = "Apache-2.0"
