@@ -99,7 +99,7 @@ Press <kbd>c</kbd> and the run becomes a tree: the trunk branches into agents an
 
 Press <kbd>o</kbd> for the Tools tab. Across all runs (or one session), it shows how each tool really behaves: how often it fails, what the agent does after a failure, which tools it switches between, and which ones it is offered but never calls. Tool description linters score the text; this shows what happens in real runs.
 
-It opens with what no single trace tells you. Over 20 read-only tasks on GitHub's MCP server plus the examples, for instance: the agents changed course after 4 of their 5 tool errors; they were offered 15 tools they never called, whose definitions cost about 138,000 tokens; and one tool's results averaged about 25,000 tokens each.
+It opens with what no single trace tells you. Over 20 read-only tasks on GitHub's MCP server plus the examples, for instance: the agents changed course after 4 of their 5 tool errors; they were offered 15 tools they never called, whose definitions cost about 162,000 tokens; and one tool's results averaged about 33,000 tokens each.
 
 | Column | Means |
 |---|---|
@@ -123,7 +123,7 @@ OpenTelemetry traces; its README explains everything below in more detail.
 
 1. Start loopview, outside this project's dependencies. It needs uv
    (https://docs.astral.sh/uv/):
-     uvx loopview --no-browser
+     uvx loopview@latest --no-browser
    Keep that server running in the background. It serves the UI and receives traces
    on http://127.0.0.1:4318.
 2. Find what the agent in this project is built with (LangGraph/LangChain, Pydantic AI,
@@ -144,9 +144,32 @@ OpenTelemetry traces; its README explains everything below in more detail.
    `with loopview_sdk.agent("<agent name>"):` so the whole task shows as one run.
 6. Run the agent once, with LOOPVIEW=1, on a short and cheap task. Check that
    connect() printed which frameworks it instrumented, and that the run arrived:
-   http://127.0.0.1:4318/api/runs should list it.
-7. Tell me what you changed, the command to start a run with loopview, and to open
-   http://127.0.0.1:4318. Don't commit anything.
+   http://127.0.0.1:4318/api/runs lists it first.
+7. Check how much of loopview will work with this setup. Fetch
+   http://127.0.0.1:4318/api/runs/<id of that run>. If its "run.status" is "error",
+   the run itself failed (the steps with "status": "error" carry the message):
+   report that error, fix it if it's in the setup, and run again; compatibility
+   can't be judged from a failed run. Otherwise, look at its "steps":
+   a. No step with "kind": "model_call": loopview can't see the model calls. The
+      framework isn't instrumented; the graph will show little.
+   b. Model calls whose "model.cost.status" is "content_not_recorded": the messages
+      aren't recorded. The details panel can't show the task, the answer or the
+      prompts, and the cost can't be split. Usually content capture is turned off.
+   c. Model calls with "status": "ok" whose cost status is "no_usage": no token
+      counts, so no cost. (A failed call reports none either; that's not a setup
+      problem.)
+   d. A status of "estimated" but "model.cost.dollars" null: the model isn't in
+      loopview's price list ("model.model" names it). Tokens show, dollars don't;
+      prices can be added with `loopview --prices FILE`.
+   e. Steps with "kind": "unknown" and "hidden": false: spans loopview doesn't
+      recognise, drawn as grey cards. Give their names.
+8. Tell me what you changed, the command to start a run with loopview, and to open
+   http://127.0.0.1:4318. Then give me a verdict on its own line:
+   "loopview: fully compatible" when the run succeeded and none of a to e happened,
+   otherwise "loopview: partly compatible", followed by each problem found, what it
+   means in the UI, and the likely fix. If you can't tell (the run didn't arrive,
+   the API didn't answer, every run failed), say so instead of guessing. Don't
+   commit anything.
 ```
 
 ## Quick start
@@ -306,7 +329,7 @@ Standard OpenTelemetry exporters send a span only when it **ends**, but a live v
 | <kbd>f</kbd> | fit the graph to the screen |
 | <kbd>esc</kbd> | close the details panel |
 
-Click a card to open its details and zoom to it; click or drag on the timeline to jump to a moment. Runs can be exported as JSONL and imported by someone else, so you can share a trace. `loopview --help` lists the server options (`--port`, `--persist FILE`, `--max-runs`, `--prices FILE`).
+Click a card to open its details and zoom to it. An agent's details open with its task, its final answer and its instructions (the system prompt); a model call's with its output, then what was new in its input, with the system prompt and earlier messages folded; click or drag on the timeline to jump to a moment. Runs can be exported as JSONL and imported by someone else, so you can share a trace. `loopview --help` lists the server options (`--port`, `--persist FILE`, `--max-runs`, `--prices FILE`).
 
 Prices for Anthropic and OpenAI models live in [`pricing.json`](server/src/loopview/cost/pricing.json), with a source link and the date each was checked. To add a model or correct a price, pass your own file with `--prices FILE`; its entries override the built-in ones. Models with no price are shown in tokens only.
 
@@ -321,7 +344,7 @@ Prices for Anthropic and OpenAI models live in [`pricing.json`](server/src/loopv
 - The cost split is an estimate: tokens are approximated from characters (about 4 per token for prose, 3 for JSON), then scaled to the reported totals. The totals themselves are exact. Prices cover Anthropic and OpenAI at list price (standard tier): Anthropic cache writes use the 5 minute rate, and OpenAI's higher rate for prompts above 272K tokens isn't applied.
 - Calls without recorded content show their total cost but no split. Calls whose framework reports no token counts are listed but not counted.
 - The Tools tab only counts errors the tool reports. A tool that "succeeds" with a wrong or empty result isn't caught, and errors are never guessed from the result text.
-- In the Tools tab, token numbers for tool definitions and results are estimates (characters / 4).
+- In the Tools tab, token numbers for tool definitions and results are estimates, made like the cost split's: from characters, then scaled to the input tokens the provider reported for the model call. Where a call reported no counts, or its content doesn't explain them, the unscaled estimate is used.
 - "After an error" looks at the same agent only: if another agent recovers (a supervisor retrying for a worker), that isn't tracked.
 
 ## Development
