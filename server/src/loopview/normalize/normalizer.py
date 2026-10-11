@@ -10,7 +10,8 @@ Passes:
    still running (exporters send a span only when it ends), so we add an
    "inferred" step for it, named from what the child tells us;
 3. decide what is hidden (plumbing, duplicate subgraph spans, HTTP spans inside
-   model or tool calls);
+   model or tool calls, MCP session messages, the app's own root span around an
+   agent: D55);
 4. link each step to its nearest visible parent and to its scope (the flow step
    it belongs to), promote nodes that contain other nodes to groups, build keys;
 5. rebuild tool calls from the conversation when no span records them
@@ -194,9 +195,14 @@ def _place_unclassified_starts(drafts: dict[str, _Draft]) -> None:
 
 
 def _decide_hidden(drafts: dict[str, _Draft]) -> None:
+    agent_parents = {d.raw_parent for d in drafts.values() if d.c.kind == "agent"}
     for d in drafts.values():
         parent = drafts.get(d.raw_parent) if d.raw_parent else None
         if d.c.hidden:
+            d.hidden = True
+        elif d.c.kind == "unknown" and d.raw_parent is None and d.id in agent_parents:
+            # The app's own span around an agent ("triage issue#12"): it is the run
+            # itself, whose name it already gives. A card for it would float apart.
             d.hidden = True
         elif d.c.collapse_into_parent and parent is not None and parent.c.name == d.c.name:
             d.hidden = True  # a subgraph span directly inside the node that runs it
@@ -305,14 +311,24 @@ def _service_name(run: Run) -> str:
 def _run_info(run: Run, steps: list[Step], stale: bool) -> RunInfo:
     root = run.root
     running = root is None and not stale
-    if root is not None and root.status_code == "error":
+    # The top step: the real root (even when hidden, as an app's span around an
+    # agent is), or while it's missing the provisional one.
+    top_step = next((s for s in steps if root is not None and s.id == root.span_id), None)
+    top_step = top_step or next((s for s in steps if s.parent_id is None), None)
+    # An app's span around an agent is the run itself (D55), and often ends
+    # without a status even when the app caught the agent's failure: the run
+    # failed if the agent it wraps did.
+    wrapped_failed = (
+        top_step is not None
+        and top_step.hidden
+        and any(s.kind == "agent" and s.parent_id is None and s.status == "error" for s in steps)
+    )
+    if (root is not None and root.status_code == "error") or wrapped_failed:
         status: StepStatus = "error"
     else:
         status = "running" if running else "ok"
     known = [*run.spans.values(), *run.started.values()]
     named_after = root or min(known, key=lambda s: s.start_time_unix_nano)
-    # The top step: the real root, or while it's missing the provisional one.
-    top_step = next((s for s in steps if s.parent_id is None), None)
     return RunInfo(
         id=run.trace_id,
         name=top_step.name if top_step else named_after.name,

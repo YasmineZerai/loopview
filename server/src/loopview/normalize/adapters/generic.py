@@ -16,7 +16,14 @@ class GenericAdapter:
         return True
 
     def classify(self, span: RawSpan) -> Classification:
-        return Classification("unknown", span.name, span.kind, attributes=dict(span.attributes))
+        # MCP clients (mcp-python-sdk, fastmcp) trace their session housekeeping:
+        # initialize, server/discover, tools/list. It is connection plumbing, not
+        # a step of the agent's flow. Tool calls are the agent's framework's to show.
+        method = span.attributes.get("mcp.method.name")
+        hidden = method is not None and method != "tools/call"
+        return Classification(
+            "unknown", span.name, span.kind, hidden=hidden, attributes=dict(span.attributes)
+        )
 
     def infer_parent(self, span: RawSpan) -> ParentHint | None:
         return None
