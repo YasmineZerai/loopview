@@ -267,7 +267,12 @@ export function GraphView() {
   }, [activeKeys, layout, view, selectedKey, getInternalNode, setCenter, fitBounds])
 
   /** Clicking a node selects it (its details open) and zooms in on it. */
+  const [hintSeen, setHintSeen] = useState(readHintSeen)
   const onNodeClick = (key: string, isGroup: boolean) => {
+    if (!hintSeen) {
+      setHintSeen(true)
+      saveHintSeen()
+    }
     if (key === selectedKey) return setSelectedKey(null)
     setSelectedKey(key)
     const node = getInternalNode(key)
@@ -348,7 +353,8 @@ export function GraphView() {
   }, [graph, layout, hues, hoverKey, activeKeys, selectedKey, toggleCollapsed, theme, expanded, callsByNode, time, onExpand])
 
   return (
-    <div ref={container} className="h-full w-full">
+    <div ref={container} className="relative h-full w-full">
+    {!hintSeen && <DetailsHint />}
     <ReactFlow
       nodes={nodes}
       edges={edges}
@@ -374,6 +380,34 @@ export function GraphView() {
     >
       <Background variant={BackgroundVariant.Dots} gap={22} size={1.2} color="var(--color-canvas-dot)" />
     </ReactFlow>
+    </div>
+  )
+}
+
+// Nothing on a card says it opens: say it, until a card has been clicked once.
+// Storage can be unavailable, so every access is guarded.
+const HINT_SEEN = 'loopview.detailsHintSeen'
+
+function readHintSeen(): boolean {
+  try {
+    return localStorage.getItem(HINT_SEEN) === '1'
+  } catch {
+    return false
+  }
+}
+
+function saveHintSeen() {
+  try {
+    localStorage.setItem(HINT_SEEN, '1')
+  } catch {
+    // shown again next visit
+  }
+}
+
+function DetailsHint() {
+  return (
+    <div className="pointer-events-none absolute left-4 top-4 z-10 rounded-lg border border-border bg-surface/90 px-3 py-2 text-[12px] text-muted shadow-sm backdrop-blur phone:hidden">
+      Click an agent or a card to read its task, its answer and its prompts.
     </div>
   )
 }

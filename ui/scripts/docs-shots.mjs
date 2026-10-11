@@ -7,6 +7,8 @@ import { chromium } from 'playwright'
 const [base = 'http://127.0.0.1:4460', out = '../docs'] = process.argv.slice(2)
 const browser = await chromium.launch({ channel: process.env.PW_CHANNEL ?? 'msedge' })
 const page = await browser.newPage({ viewport: { width: 1600, height: 960 }, deviceScaleFactor: 1.5 })
+// The "click a card" hint is for first visits, not for the README's pictures.
+await page.addInitScript(() => localStorage.setItem('loopview.detailsHintSeen', '1'))
 const state = (fn, arg) => page.evaluate(fn, arg)
 const settle = (ms = 1400) => page.waitForTimeout(ms)
 const shot = async (name, clip) => {

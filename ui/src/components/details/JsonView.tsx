@@ -1,12 +1,16 @@
 // A small collapsible JSON viewer with syntax colours. No dependency: the data
-// is already parsed, so rendering is a short recursive component.
+// is already parsed, so rendering is a short recursive component. A string that
+// holds JSON (as tools often return) is shown as that JSON; strings keep their
+// line breaks rather than showing them escaped.
 
 import { useState } from 'react'
 import { Chevron } from '../icons'
 import { CopyButton } from './CopyButton'
+import { parsedIfJson } from '../../details/brief'
 
-export function JsonBlock({ value, label, open = false }: { value: unknown; label?: string; open?: boolean }) {
-  const text = typeof value === 'string' ? value : JSON.stringify(value, null, 2)
+export function JsonBlock({ value: raw, label, open = false }: { value: unknown; label?: string; open?: boolean }) {
+  const text = typeof raw === 'string' ? raw : JSON.stringify(raw, null, 2)
+  const value = parsedIfJson(raw)
   return (
     <div className="group/json relative rounded-lg border border-border bg-canvas/60">
       {label && (
@@ -74,7 +78,7 @@ function JsonNode({ value, depth, open, name }: { value: unknown; depth: number;
 }
 
 function Scalar({ value }: { value: unknown }) {
-  if (typeof value === 'string') return <span className="break-words text-json-string">{JSON.stringify(value)}</span>
+  if (typeof value === 'string') return <span className="whitespace-pre-wrap break-words text-json-string">"{value}"</span>
   if (typeof value === 'number') return <span className="text-json-number">{value}</span>
   if (typeof value === 'boolean') return <span className="text-json-bool">{String(value)}</span>
   return <span className="text-muted">null</span>

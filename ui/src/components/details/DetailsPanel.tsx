@@ -2,12 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSelectedRun, useStore } from '../../store'
-import { formatDuration } from '../../theme'
+import { formatDuration, formatTokens } from '../../theme'
 import type { Step } from '../../types'
 import { StatusMark } from '../StatusMark'
 import { Chevron, Cross, Sparkle, Wrench } from '../icons'
 import { RebuiltNote } from '../CallViews'
-import { Conversation } from './Conversation'
+import { Conversation, Folded, TextOrJson } from './Conversation'
+import { allCallsIn, brief, callsOf, type Brief } from '../../details/brief'
 import { JsonBlock } from './JsonView'
 
 export function DetailsPanel() {
@@ -55,7 +56,11 @@ export function DetailsPanel() {
 }
 
 function Execution({ step, index, total, all, highlight }: { step: Step; index: number; total: number; all: Step[]; highlight: string | null }) {
-  const calls = all.filter((s) => s.scope_id === step.id && !s.hidden && (s.kind === 'model_call' || s.kind === 'tool_call'))
+  const calls = useMemo(() => callsOf(step, all), [step, all])
+  const isAgent = step.kind === 'agent'
+  // An agent that only delegates has no calls of its own: read it from its sub-agents.
+  const delegates = isAgent && calls.length === 0
+  const summary = useMemo(() => (isAgent ? brief(delegates ? allCallsIn(step, all) : calls) : null), [isAgent, delegates, step, all, calls])
   // The last execution starts open, or the one holding a call the Tools tab pointed at.
   const holdsHighlight = highlight !== null && calls.some((c) => c.id === highlight)
   const [open, setOpen] = useState(highlight !== null && all.some((s) => s.id === highlight) ? holdsHighlight : index === total - 1)
@@ -74,13 +79,69 @@ function Execution({ step, index, total, all, highlight }: { step: Step; index: 
       {open && (
         <div className="space-y-3 border-t border-border px-3.5 py-3">
           {step.error && <ErrorBox message={step.error} />}
-          {calls.length === 0 && step.input != null && <JsonBlock label="input" value={step.input} />}
-          {calls.map((call) => (call.kind === 'model_call' ? <ModelCallView key={call.id} step={call} /> : <ToolCallView key={call.id} step={call} highlighted={call.id === highlight} />))}
-          {calls.length === 0 && step.output != null && <JsonBlock label="output" value={step.output} />}
+          {summary && <AgentBrief brief={summary} delegates={delegates} />}
+          {(isAgent || calls.length === 0) && step.input != null && <JsonBlock label="recorded input" value={step.input} />}
+          {(isAgent || calls.length === 0) && step.output != null && <JsonBlock label="recorded output" value={step.output} />}
+          {calls.length > 0 &&
+            (isAgent ? (
+              <Folded title={`Every call (${calls.length})`} open={holdsHighlight}>
+                <CallList calls={calls} highlight={highlight} />
+              </Folded>
+            ) : (
+              <CallList calls={calls} highlight={highlight} />
+            ))}
           {step.kind === 'unknown' && <JsonBlock label="attributes" value={step.attributes} />}
         </div>
       )}
     </section>
+  )
+}
+
+function CallList({ calls, highlight }: { calls: Step[]; highlight: string | null }) {
+  return (
+    <div className="space-y-3">
+      {calls.map((call) => (call.kind === 'model_call' ? <ModelCallView key={call.id} step={call} /> : <ToolCallView key={call.id} step={call} highlighted={call.id === highlight} />))}
+    </div>
+  )
+}
+
+/** What an agent was told, what it was asked and what it answered: the three
+ * things to read first, each from the trace or marked as not recorded. */
+function AgentBrief({ brief: b, delegates }: { brief: Brief; delegates: boolean }) {
+  return (
+    <div className="space-y-3">
+      <div className="font-mono text-[11px] text-muted">
+        {b.modelCalls} model call{b.modelCalls === 1 ? '' : 's'} · {b.toolCalls} tool call{b.toolCalls === 1 ? '' : 's'}
+        {b.tokens !== null && ` · ${formatTokens(b.tokens)} tokens`}
+      </div>
+      {delegates && <p className="text-[12px] text-muted">It made no model calls itself. Read from the agents it called: the first one's task, the last one's answer.</p>}
+      <BriefText title="Task" text={b.task} clamp />
+      <BriefText title="Final answer" text={b.answer} />
+      <BriefText title="Instructions (system prompt)" text={b.instructions} clamp />
+    </div>
+  )
+}
+
+function BriefText({ title, text, clamp = false }: { title: string; text: string | null; clamp?: boolean }) {
+  const [expanded, setExpanded] = useState(!clamp)
+  return (
+    <div className="space-y-1">
+      <div className="text-[10.5px] font-medium uppercase tracking-wider text-muted">{title}</div>
+      {text === null ? (
+        <p className="text-[12px] italic text-muted">Not recorded.</p>
+      ) : (
+        <div className="rounded-lg bg-overlay-soft px-3 py-2">
+          <div className={expanded ? '' : 'line-clamp-4'}>
+            <TextOrJson text={text} />
+          </div>
+          {clamp && (
+            <button className="mt-1 text-[11px] text-muted hover:text-text" onClick={() => setExpanded(!expanded)}>
+              {expanded ? 'Show less' : 'Show all'}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 

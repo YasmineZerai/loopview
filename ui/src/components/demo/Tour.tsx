@@ -352,10 +352,10 @@ const STEPS: Step[] = [
     body: (
       <Legend>
         <Item mark={<CardMark />}>
-          <B>Click a card</B> to open this panel
+          <B>Click a card</B> to open this panel; an agent opens with its task, final answer and instructions
         </Item>
         <Item mark={<Swatch color="var(--color-role-user)" />}>
-          <B>The full conversation</B>, coloured by who spoke
+          <B>Each model call&apos;s output first</B>, then what was new in its input; the system prompt and earlier messages are folded
         </Item>
         <Item mark={<Swatch color="var(--color-role-tool)" />}>
           <B>Tool arguments and results</B>, errors in red
