@@ -167,7 +167,7 @@ def create_app(
         normalized = [n for n in (hub.get(t) for t in trace_ids) if n is not None]
         if runs and not normalized:
             raise HTTPException(404, "none of these runs were found")
-        return tools_report(normalized)
+        return tools_report(normalized, hub.pricing)
 
     @app.get("/api/events")
     async def events() -> StreamingResponse:

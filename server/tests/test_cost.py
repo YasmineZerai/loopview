@@ -240,6 +240,32 @@ def test_openai_model_ids_match_the_right_entry() -> None:
     assert match("gpt-3.5-turbo-1106") == "gpt-3.5-turbo-1106"
 
 
+def test_a_routers_dotted_claude_version_matches_and_openai_dots_stay_dots() -> None:
+    pricing = default_pricing()
+    # OpenRouter's ID for claude-haiku-5-5, as a Pydantic AI trace records it.
+    assert pricing.for_model("anthropic/claude-haiku-5.5")[0] == "claude-haiku-5-5"  # type: ignore[index]
+    # An unpriced OpenAI version must not borrow the price of gpt-5 as "gpt-5-7".
+    assert pricing.for_model("gpt-5.7") is None
+
+
+def test_a_long_prompt_pays_the_long_prompt_prices_for_the_whole_request() -> None:
+    _, price = default_pricing().for_model("claude-haiku-5-5")  # type: ignore[misc]
+    call = lambda tokens: ModelCall(  # noqa: E731
+        model="claude-haiku-5-5",
+        usage=Usage(input_tokens=tokens, output_tokens=1000, cache_read_tokens=tokens // 2),
+    )
+    at_threshold = call_cost(call(100_000), default_pricing())
+    over = call_cost(call(100_001), default_pricing())
+    # 50,000 uncached + 50,000 cache reads + 1,000 output, at the base prices.
+    assert at_threshold.dollars == pytest.approx(
+        (50_000 * price.input + 50_000 * price.cache_read + 1000 * price.output) / 1e6
+    )
+    long = price.long_prompt
+    assert long is not None and over.dollars == pytest.approx(
+        (50_001 * long.input + 50_000 * long.cache_read + 1000 * long.output) / 1e6
+    )
+
+
 def test_openai_caching_is_priced_as_openai_bills_it() -> None:
     gpt = default_pricing().models["gpt-5.4"]
     assert gpt.cache_write == gpt.input  # writing the cache costs nothing extra

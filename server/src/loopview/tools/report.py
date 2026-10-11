@@ -32,22 +32,33 @@ Definitions (also in DECISIONS.md D44):
   in the input records any, the tool list is "not recorded" and nothing is
   inferred about unused tools.
 - Never called: offered at least once, called zero times in the input runs.
-- Definition cost (estimate): a definition's JSON length / 4, times the number of
-  model calls that carried it.
-- Result size (estimate): the average result length / 4 over successful calls
-  (Pydantic AI records its retry prompt as the result of a failed call).
+- Token estimates use the Cost tab's estimate and scaling (cost/split.py, D54):
+  characters / 4 for prose and / 3 for JSON, scaled to the input count the
+  provider reported for the model call.
+- Definition cost (estimate): on each model call that carried the definition, its
+  share of the call's scaled "tool definitions" segment, in proportion to its
+  estimated size; summed over those calls. The provider's own tool prompt is a
+  separate segment and isn't spread over the tools. A call without a reported
+  input count, or whose count the content doesn't explain (part of it went to
+  "unattributed"), contributes the unscaled estimate instead.
+- Result size (estimate): the average over successful calls (Pydantic AI records
+  its retry prompt as the result of a failed call) of the result's estimate,
+  scaled by the "tool results" factor of the model call that first received it:
+  the agent's next model call. Unscaled when there is no such call or it has no
+  usable reported count.
+- How many of these estimates were scaled, and how many fell back, is reported.
 """
 
 import json
-import math
 import re
 from collections import Counter
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from loopview.cost.pricing import Pricing, default_pricing
+from loopview.cost.split import InputScale, estimate_tokens, scale_input
 from loopview.normalize.schema import NormalizedRun, Step
 
-CHARS_PER_TOKEN = 4
 ERROR_GROUP_MAX = 200
 TOP_ERRORS = 3
 MIN_CONFUSED = 2
@@ -60,11 +71,6 @@ Move = Literal["blind_retry", "fixed", "switched", "gave_up"]
 
 def canonical_args(arguments: Any) -> str:
     return json.dumps(arguments, sort_keys=True, default=str, ensure_ascii=False)
-
-
-def estimate_tokens(value: Any) -> int:
-    text = value if isinstance(value, str) else canonical_args(value)
-    return math.ceil(len(text) / CHARS_PER_TOKEN)  # anything non-empty is a token
 
 
 _UUID = re.compile(
@@ -123,6 +129,7 @@ class Call:
     canonical: str
     result: Any
     error: str | None  # None when the call succeeded
+    result_tokens: float | None = None  # successful calls' result estimate, set by the report
 
     @property
     def failed(self) -> bool:
@@ -220,6 +227,44 @@ def next_move(
     return NextMove("gave_up")
 
 
+# --- token estimates, scaled as in the Cost tab ------------------------------------------
+
+
+def _input_scale(step: Step, pricing: Pricing) -> InputScale | None:
+    if step.model is None:
+        return None
+    match = pricing.for_model(step.model.model)
+    return scale_input(step.model, match[1] if match else None)
+
+
+def definition_shares(
+    definitions: list[Any], scale: InputScale | None
+) -> tuple[dict[str, float], bool]:
+    """Each named definition's tokens on one model call: its share of the call's
+    scaled "tool definitions" segment, in proportion to its estimated size. When
+    the call can't be scaled (see `InputScale.factor`), the unscaled estimate.
+    Also says whether the shares were scaled."""
+    factor = scale.factor("tool_definitions") if scale else None
+    scale_by = 1.0 if factor is None else factor
+    shares: dict[str, float] = {}
+    for d in definitions:
+        name = definition_name(d)
+        if name:
+            shares[name] = shares.get(name, 0.0) + estimate_tokens(d) * scale_by
+    return shares, factor is not None
+
+
+def result_estimate(call: Call, scales: list[tuple[int, InputScale | None]]) -> tuple[float, bool]:
+    """A result is first sent to the model on the agent's next model call, so its
+    estimate is scaled by that call's "tool results" factor. `scales` are the
+    agent's model calls as (start, scale), sorted. Also says whether it was scaled."""
+    following = next((scale for start, scale in scales if start >= call.end), None)
+    factor = following.factor("tool_results") if following else None
+    scale_by = 1.0 if factor is None else factor
+    tokens = estimate_tokens(call.result) * scale_by
+    return (max(tokens, 1.0) if tokens > 0 else 0.0), factor is not None  # non-empty: a token
+
+
 # --- the report ----------------------------------------------------------------------------
 
 
@@ -230,11 +275,15 @@ class _ToolStats:
     switched_to: Counter[str] = field(default_factory=Counter)
 
 
-def tools_report(runs: list[NormalizedRun]) -> dict[str, Any]:
+def tools_report(runs: list[NormalizedRun], pricing: Pricing | None = None) -> dict[str, Any]:
+    """`pricing` gives each model's documented tool prompt, which is kept out of the
+    definitions' share, as in the Cost tab. None: the bundled prices."""
+    pricing = pricing or default_pricing()
     stats: dict[str, _ToolStats] = {}
     pairs: Counter[tuple[str, str]] = Counter()
-    offered_size: dict[str, int] = {}  # tool -> definition size in tokens (largest seen)
+    definition_tokens: dict[str, float] = {}  # tool -> tokens over the calls that carried it
     carried: Counter[str] = Counter()  # tool -> model calls that carried its definition
+    scaled: Counter[str] = Counter()  # estimates tied to a reported count, or not
     tool_list_recorded = False
     all_calls: list[Call] = []
 
@@ -243,22 +292,33 @@ def tools_report(runs: list[NormalizedRun]) -> dict[str, Any]:
         calls = _calls(run, by_id)
         all_calls += calls
         model_calls: dict[str, list[tuple[int, int]]] = {}
+        scales: dict[str, list[tuple[int, InputScale | None]]] = {}  # agent -> (start, scale)
         for s in run.steps:
             if s.kind != "model_call":
                 continue
+            agent = _agent_of(s, by_id)
             # A running model call hasn't requested anything yet.
             end = s.end_ns if s.end_ns is not None else 2**63
-            model_calls.setdefault(_agent_of(s, by_id), []).append((s.start_ns, end))
+            model_calls.setdefault(agent, []).append((s.start_ns, end))
+            scale = _input_scale(s, pricing)
+            scales.setdefault(agent, []).append((s.start_ns, scale))
             definitions = s.model.tool_definitions if s.model else []
             if definitions:
                 tool_list_recorded = True
-            for d in definitions:
-                name = definition_name(d)
-                if name:
-                    carried[name] += 1
-                    offered_size[name] = max(offered_size.get(name, 0), estimate_tokens(d))
+            shares, ok = definition_shares(definitions, scale)
+            if shares:
+                scaled["definition_calls_scaled" if ok else "definition_calls_unscaled"] += 1
+            for name, tokens in shares.items():
+                carried[name] += 1
+                definition_tokens[name] = definition_tokens.get(name, 0.0) + tokens
         for spans in model_calls.values():
             spans.sort()
+        for starts in scales.values():
+            starts.sort(key=lambda t: t[0])
+        for c in calls:
+            if not c.failed and c.result is not None:
+                c.result_tokens, ok = result_estimate(c, scales.get(c.agent, []))
+                scaled["results_scaled" if ok else "results_unscaled"] += 1
 
         by_agent: dict[str, list[Call]] = {}
         for c in calls:
@@ -285,7 +345,7 @@ def tools_report(runs: list[NormalizedRun]) -> dict[str, Any]:
         never_called = [
             {
                 "name": name,
-                "definition_tokens_estimate": offered_size[name] * carried[name],
+                "definition_tokens_estimate": round(definition_tokens[name]),
                 "carried_by_model_calls": carried[name],
             }
             for name in sorted(set(carried) - called)
@@ -304,6 +364,17 @@ def tools_report(runs: list[NormalizedRun]) -> dict[str, Any]:
             "never_called_count": len(never_called),
             "never_called_tokens_estimate": never_tokens,
             "never_called_tokens_per_run_estimate": round(never_tokens / len(runs)) if runs else 0,
+            # Model calls carrying definitions, and successful results, whose
+            # estimate was scaled to the reported input count, or left unscaled.
+            "estimates": {
+                key: scaled[key]
+                for key in (
+                    "definition_calls_scaled",
+                    "definition_calls_unscaled",
+                    "results_scaled",
+                    "results_unscaled",
+                )
+            },
         },
         "tools": tools,
         "never_called": never_called,
@@ -317,7 +388,7 @@ def _tool_entry(name: str, s: _ToolStats, pairs: Counter[tuple[str, str]]) -> di
     for c in failures:
         groups.setdefault(error_group(c.error or ""), []).append(c)
     top = sorted(groups.items(), key=lambda g: (-len(g[1]), g[0]))[:TOP_ERRORS]
-    results = [estimate_tokens(c.result) for c in s.calls if not c.failed and c.result is not None]
+    results = [c.result_tokens for c in s.calls if c.result_tokens is not None]
     return {
         "name": name,
         "calls": len(s.calls),

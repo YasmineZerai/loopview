@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import toolsJson from '../test-data/tools.json'
 import type { AfterError, ToolStats, ToolsReport } from '../types'
-import { afterErrorBar, DEFAULT_SORT, describeAfterError, findings, nextSort, roughly, sortTools, summarySentence, viewState } from './toolsModel'
+import { afterErrorBar, DEFAULT_SORT, describeAfterError, estimateTitles, findings, nextSort, roughly, sortTools, summarySentence, viewState } from './toolsModel'
 
 // The report over every recorded fixture, computed by the server's real code.
 const recorded = toolsJson as unknown as ToolsReport
@@ -20,6 +20,7 @@ function report(overrides: Partial<ToolsReport['summary']> = {}, rest: Partial<T
     summary: {
       runs: 20, tool_calls: 312, errors: 41, share_of_errors_from_top_2_tools: 0.78,
       never_called_count: 15, never_called_tokens_estimate: 180_000, never_called_tokens_per_run_estimate: 8947,
+      estimates: { definition_calls_scaled: 72, definition_calls_unscaled: 12, results_scaled: 54, results_unscaled: 0 },
       ...overrides,
     },
     tools: [tool('a', 100, 20), tool('b', 100, 12), tool('c', 100, 9)],
@@ -101,6 +102,13 @@ describe('the summary sentence', () => {
   it('handles one run, no errors and no unused tools', () => {
     const s = summarySentence(report({ runs: 1, tool_calls: 1, errors: 0, share_of_errors_from_top_2_tools: null, never_called_count: 0 }, { tools: [tool('a', 1, 0)] }))
     expect(s).toBe('1 run, 1 tool call, 0 errors. Every offered tool was used.')
+  })
+
+  it('says the token estimates are scaled to reported usage, and how often they could be', () => {
+    const titles = estimateTitles(report().summary.estimates)
+    expect(titles.definitions).toContain('scaled to the input tokens the provider reported where it could be (72 of 84 model calls')
+    expect(titles.results).toMatch(/scaled to the input tokens the provider reported$/)
+    expect(titles.definitions + titles.results).not.toMatch(/characters \/ 4\)/)
   })
 
   it('rounds the way people say numbers', () => {

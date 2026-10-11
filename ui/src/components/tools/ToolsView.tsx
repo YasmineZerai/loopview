@@ -10,6 +10,7 @@ import {
   afterErrorBar,
   DEFAULT_SORT,
   describeAfterError,
+  estimateTitles,
   findings,
   formatRate,
   MOVES,
@@ -94,7 +95,7 @@ export function ToolsView() {
         {state === 'ready' && (
           <>
             <Findings report={report!} />
-            <ToolTable tools={report!.tools} />
+            <ToolTable tools={report!.tools} resultTitle={estimateTitles(report!.summary.estimates).results} />
             <NeverCalled report={report!} />
           </>
         )}
@@ -160,10 +161,10 @@ const COLUMNS: { key: SortKey | null; label: string; title?: string; numeric?: b
   { key: 'errors', label: 'Errors', numeric: true, title: 'Calls the trace marks as failed (status error, an exception, or an MCP isError result)' },
   { key: 'error_rate', label: 'Error rate', numeric: true },
   { key: null, label: 'After an error', title: "What the agent did next, once the error was back in front of the model" },
-  { key: 'avg_result_tokens_estimate', label: 'Avg result', numeric: true, title: 'Average size of a successful result, in tokens (estimated: characters / 4)' },
+  { key: 'avg_result_tokens_estimate', label: 'Avg result', numeric: true }, // title: estimateTitles
 ]
 
-function ToolTable({ tools }: { tools: ToolStats[] }) {
+function ToolTable({ tools, resultTitle }: { tools: ToolStats[]; resultTitle: string }) {
   const [sort, setSort] = useState(DEFAULT_SORT)
   const [open, setOpen] = useState<string | null>(null)
   const rows = useMemo(() => sortTools(tools, sort.key, sort.dir), [tools, sort])
@@ -180,7 +181,7 @@ function ToolTable({ tools }: { tools: ToolStats[] }) {
                   key={c.label}
                   className={`px-3 py-2 font-medium ${c.numeric ? 'text-right' : ''}`}
                   aria-sort={c.key === sort.key ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined}
-                  title={c.title}
+                  title={c.key === 'avg_result_tokens_estimate' ? resultTitle : c.title}
                 >
                   {c.key ? (
                     <button className="uppercase tracking-wider hover:text-text" onClick={() => setSort(nextSort(sort, c.key!))}>
@@ -386,7 +387,7 @@ function NeverCalled({ report }: { report: ToolsReport }) {
                 <tr className="border-b border-border text-left text-[11px] uppercase tracking-wider text-muted">
                   <th className="px-3 py-2 font-medium">Tool</th>
                   <th className="px-3 py-2 text-right font-medium">Model calls that carried it</th>
-                  <th className="px-3 py-2 text-right font-medium" title="Definition length / 4, times the model calls that carried it">
+                  <th className="px-3 py-2 text-right font-medium" title={estimateTitles(report.summary.estimates).definitions}>
                     Definition cost <span className="normal-case tracking-normal">(est.)</span>
                   </th>
                 </tr>

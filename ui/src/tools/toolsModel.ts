@@ -68,6 +68,23 @@ export function roughly(n: number): string {
   return (Math.round(n / step) * step).toLocaleString('en-US')
 }
 
+/** Tooltips for the two token estimates: how they were made, and on how many
+ * of them the provider's reported count could be used. */
+export function estimateTitles(estimates: ToolsReport['summary']['estimates']): { definitions: string; results: string } {
+  const how = (scaled: number, unscaled: number, of: string) =>
+    unscaled === 0
+      ? `scaled to the input tokens the provider reported`
+      : `scaled to the input tokens the provider reported where it could be (${scaled.toLocaleString('en-US')} of ${plural(scaled + unscaled, of)}; the rest unscaled)`
+  return {
+    definitions:
+      'Estimated from the definition (characters / 4 for prose, / 3 for JSON), ' +
+      `${how(estimates.definition_calls_scaled, estimates.definition_calls_unscaled, 'model call')}, summed over the model calls that carried it`,
+    results:
+      'Average size of a successful result, in tokens: estimated from the text (characters / 4 for prose, / 3 for JSON), ' +
+      how(estimates.results_scaled, estimates.results_unscaled, 'result'),
+  }
+}
+
 /** One plain sentence about the whole report. */
 export function summarySentence(report: ToolsReport): string {
   const s = report.summary

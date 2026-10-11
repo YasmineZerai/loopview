@@ -180,6 +180,14 @@ export interface ToolsReport {
     never_called_count: number
     never_called_tokens_estimate: number
     never_called_tokens_per_run_estimate: number
+    // How many estimates were scaled to the tokens the provider reported, or not
+    // (model calls carrying definitions; successful results).
+    estimates: {
+      definition_calls_scaled: number
+      definition_calls_unscaled: number
+      results_scaled: number
+      results_unscaled: number
+    }
   }
   tools: ToolStats[]
   never_called: { name: string; definition_tokens_estimate: number; carried_by_model_calls: number }[]

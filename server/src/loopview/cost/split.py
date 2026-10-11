@@ -14,11 +14,14 @@ into segments is estimated, from the content the trace recorded:
    of the prompt (tools, then system, then messages), so those tokens are taken
    from the segments in that order.
 
-Every function here is pure: a ModelCall and prices in, numbers out.
+Every function here is pure: a ModelCall and prices in, numbers out. The Tools
+tab (tools/report.py) uses the same estimate and the same scaling (`scale_input`)
+for its definition and result sizes (DECISIONS D54).
 """
 
 import json
 import math
+from dataclasses import dataclass
 from typing import Any, Literal
 
 from loopview.cost.pricing import ModelPrice, Pricing
@@ -152,6 +155,46 @@ def carve_cache(
     return result
 
 
+@dataclass(frozen=True)
+class InputScale:
+    """A call's input split before cache tokens are carved out of it."""
+
+    estimates: dict[Segment, float]  # from content, unscaled
+    scaled: dict[Segment, int]  # scaled to the reported count, with "unattributed"
+    tool_prompt: int
+
+    def factor(self, segment: Segment) -> float | None:
+        """How much the segment's estimate was scaled to match the reported count.
+        None when the scaling can't be trusted for it: nothing estimated, or part
+        of the count went to "unattributed" (the content doesn't explain it)."""
+        # One factor for the whole call: the whole-token rounding of each segment
+        # would distort small ones (a 0.6-token estimate floored to 0).
+        known = sum(self.estimates.values())
+        if self.estimates.get(segment, 0.0) <= 0 or self.scaled.get("unattributed", 0) > 0:
+            return None
+        return sum(v for k, v in self.scaled.items() if k != "unattributed") / known
+
+
+def scale_input(call: ModelCall, price: ModelPrice | None) -> InputScale | None:
+    """The input split scaled to the reported input count. None when the provider
+    reported no input count or the trace recorded no content to split it with."""
+    reported = call.usage.input_tokens if call.usage else None
+    if reported is None or not (call.input or call.output or call.tool_definitions):
+        return None
+    # The provider's documented tool prompt is known exactly, so it is its own
+    # segment rather than part of the estimate.
+    tool_prompt = 0
+    if (
+        price
+        and price.tool_prompt_tokens
+        and uses_tools(call)
+        and reported > price.tool_prompt_tokens
+    ):
+        tool_prompt = price.tool_prompt_tokens
+    estimates = estimate_input(call)
+    return InputScale(estimates, scale_to(estimates, reported - tool_prompt), tool_prompt)
+
+
 # --- 3. the whole call ---------------------------------------------------------------
 
 
@@ -159,6 +202,9 @@ def call_cost(call: ModelCall, pricing: Pricing) -> CallCost:
     usage = call.usage
     match = pricing.for_model(call.model)
     key, price = match if match else (None, None)
+    # A long prompt can change the whole request's prices (Claude Haiku 5.5).
+    if price and call.usage and call.usage.input_tokens is not None:
+        price = price.for_prompt(call.usage.input_tokens)
     if usage is None or (usage.input_tokens is None and usage.output_tokens is None):
         return CallCost(
             status="no_usage", price_key=key, price_source=price.source if price else None
@@ -168,21 +214,12 @@ def call_cost(call: ModelCall, pricing: Pricing) -> CallCost:
     reported_out = usage.output_tokens or 0
     recorded = bool(call.input or call.output or call.tool_definitions)
 
-    # Input. The provider's documented tool prompt is known exactly, so it is its
-    # own segment rather than part of the estimate.
-    tool_prompt = 0
-    if (
-        price
-        and price.tool_prompt_tokens
-        and uses_tools(call)
-        and reported_in > price.tool_prompt_tokens
-    ):
-        tool_prompt = price.tool_prompt_tokens
-    if recorded:
-        inputs = scale_to(estimate_input(call), reported_in - tool_prompt)
+    # Input.
+    scale = scale_input(call, price)
+    if scale is not None:
+        inputs = {"tool_prompt": scale.tool_prompt, **scale.scaled}
     else:
-        inputs = {"unattributed": reported_in - tool_prompt}
-    inputs = {"tool_prompt": tool_prompt, **inputs}
+        inputs = {"tool_prompt": 0, "unattributed": reported_in}
     inputs = carve_cache(inputs, usage.cache_read_tokens or 0, usage.cache_write_tokens or 0)
 
     # Output. Reported thinking tokens are the truth for thinking; otherwise the

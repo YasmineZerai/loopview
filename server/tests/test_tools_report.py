@@ -1,16 +1,28 @@
 """The Tools tab report: next moves, error groups, confused pairs, offered tools.
 Synthetic runs cover each case; the recorded fixtures check real framework output."""
 
+import json
 from pathlib import Path
 from typing import Any
 
 import pytest
 
+from loopview.cost.split import estimate_tokens
 from loopview.normalize.normalizer import normalize_run
-from loopview.normalize.schema import ModelCall, NormalizedRun, RunInfo, Step, ToolCall
+from loopview.normalize.schema import (
+    Message,
+    MessagePart,
+    ModelCall,
+    NormalizedRun,
+    RunInfo,
+    Step,
+    ToolCall,
+    Usage,
+)
 from loopview.store.capture import load_capture
 from loopview.store.memory import TraceStore
 from loopview.tools.report import canonical_args, definition_name, error_group, tools_report
+from tests.test_cost import PRICING  # test-model, with a 500-token tool prompt
 
 FIXTURES = Path(__file__).resolve().parents[2] / "fixtures"
 
@@ -245,16 +257,23 @@ def test_never_called_tools_and_their_estimated_cost() -> None:
         for i in range(2)
     ]
     report = tools_report(runs)
-    per_definition = -(-len(canonical_args(_definition("unused"))) // 4)
+    # No reported usage: the unscaled estimate, the Cost tab's (JSON / 3).
+    per_definition = estimate_tokens(_definition("unused"))
     assert report["never_called"] == [
         {
             "name": "unused",
-            "definition_tokens_estimate": per_definition * 4,
+            "definition_tokens_estimate": round(per_definition * 4),
             "carried_by_model_calls": 4,
         }
     ]
     assert report["summary"]["never_called_count"] == 1
-    assert report["summary"]["never_called_tokens_per_run_estimate"] == per_definition * 2
+    assert report["summary"]["never_called_tokens_per_run_estimate"] == round(per_definition * 2)
+    assert report["summary"]["estimates"] == {
+        "definition_calls_scaled": 0,
+        "definition_calls_unscaled": 4,
+        "results_scaled": 0,
+        "results_unscaled": 2,
+    }
 
 
 def test_tool_list_not_recorded_means_no_never_called() -> None:
@@ -293,6 +312,106 @@ def test_results_are_averaged_over_successful_calls_only() -> None:
     run.steps[-2].tool.result = "x" * 40
     run.steps[-1].tool.result = "y" * 4000  # a retry prompt, as Pydantic AI records
     assert tool(tools_report([run.build()]), "f")["avg_result_tokens_estimate"] == 10
+
+
+def test_a_short_result_is_still_a_token() -> None:
+    run = RunBuilder().turn(("f", {}, None))
+    run.steps[-1].tool.result = "17"
+    assert tool(tools_report([run.build()]), "f")["avg_result_tokens_estimate"] == 1
+
+
+# --- token estimates scaled to the reported counts (D54) --------------------------------
+
+# Anthropic's exact counts for real MCP definitions came to 1.6x to 2.7x characters / 4
+# (D54): about 2.5 characters per token, a ratio the JSON / 3 estimate alone misses.
+# The scaling to the reported count has to correct it. Prose: about 4.
+TRUE_JSON_CHARS_PER_TOKEN = 2.5
+
+
+def _mcp_definition(name: str, words: int) -> dict[str, Any]:
+    return {
+        "name": name,
+        "description": " ".join(f"w{i}" for i in range(words)),
+        "input_schema": {
+            "type": "object",
+            "properties": {"owner": {"type": "string"}, "repo": {"type": "string"}},
+            "required": ["owner", "repo"],
+        },
+    }
+
+
+def _true_tokens(definition: dict[str, Any]) -> float:
+    return len(json.dumps(definition)) / TRUE_JSON_CHARS_PER_TOKEN
+
+
+def _with_usage(run: RunBuilder, prompt: str, extra_input: int = 0) -> RunBuilder:
+    """Give each model call a model, a prompt, and the input count a provider
+    would report: its tool prompt, plus the true size of the definitions and the
+    prompt, plus `extra_input` tokens the trace doesn't record."""
+    for step in run.steps:
+        if step.model is None:
+            continue
+        step.model.model = "test-model"
+        step.model.input = [Message(role="user", parts=[MessagePart(type="text", text=prompt)])]
+        true_input = 500 + len(prompt) / 4 + sum(_true_tokens(d) for d in run.definitions)
+        step.model.usage = Usage(input_tokens=round(true_input) + extra_input, output_tokens=10)
+    return run
+
+
+def test_definition_cost_scaled_to_reported_input_is_within_15_percent() -> None:
+    tools = [f"tool_{i}" for i in range(6)]
+    run = RunBuilder(tools=tools).turn(("tool_0", {}, None)).turn()
+    run.definitions = [_mcp_definition(name, 40 + 30 * i) for i, name in enumerate(tools)]
+    for step in run.steps:
+        if step.model is not None:
+            step.model.tool_definitions = run.definitions
+    _with_usage(run, prompt="p" * 2000)
+
+    report = tools_report([run.build()], PRICING)
+    for entry in report["never_called"]:
+        [definition] = [d for d in run.definitions if d["name"] == entry["name"]]
+        truth = _true_tokens(definition) * 2  # carried by both model calls
+        assert entry["definition_tokens_estimate"] == pytest.approx(truth, rel=0.15)
+        # The old rule (characters / 4) was far below.
+        assert len(json.dumps(definition)) / 4 * 2 < truth * 0.7
+    assert report["summary"]["estimates"]["definition_calls_scaled"] == 2
+
+
+def test_definitions_fall_back_to_the_estimate_when_the_count_is_unexplained() -> None:
+    run = _with_usage(RunBuilder(tools=["used", "unused"]).turn(("used", {}, None)).turn(), "p")
+    run_far_off = _with_usage(
+        RunBuilder("run2", tools=["used", "unused"]).turn(), "p", extra_input=50_000
+    )
+    report = tools_report([run.build(), run_far_off.build()], PRICING)
+    estimates = report["summary"]["estimates"]
+    assert (estimates["definition_calls_scaled"], estimates["definition_calls_unscaled"]) == (2, 1)
+    [unused] = report["never_called"]
+    scaled_part = 2 * _true_tokens(_definition("unused"))
+    unscaled_part = estimate_tokens(_definition("unused"))
+    assert unused["definition_tokens_estimate"] == pytest.approx(
+        scaled_part + unscaled_part, rel=0.15
+    )
+
+
+def test_result_size_scaled_by_the_next_model_call() -> None:
+    result = '{"items": [' + ", ".join(f'"item {i}"' for i in range(100)) + "]}"
+    run = RunBuilder().turn(("f", {}, None)).turn()
+    run.steps[2].tool.result = result
+    true_result = len(result) / TRUE_JSON_CHARS_PER_TOKEN
+    run.steps[3].model.input = [
+        Message(role="tool", parts=[MessagePart(type="tool_result", result=result)])
+    ]
+    run.steps[3].model.usage = Usage(input_tokens=round(true_result), output_tokens=5)
+
+    report = tools_report([run.build()], PRICING)
+    assert tool(report, "f")["avg_result_tokens_estimate"] == pytest.approx(true_result, rel=0.15)
+    assert report["summary"]["estimates"]["results_scaled"] == 1
+
+    # Without a following model call that reported usage, the unscaled estimate.
+    run.steps[3].model.usage = None
+    report = tools_report([run.build()], PRICING)
+    assert tool(report, "f")["avg_result_tokens_estimate"] == round(estimate_tokens(result))
+    assert report["summary"]["estimates"]["results_unscaled"] == 1
 
 
 # --- recorded fixtures ------------------------------------------------------------

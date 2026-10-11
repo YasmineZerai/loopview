@@ -15,6 +15,17 @@ from pydantic import BaseModel
 DEFAULT_PRICES = Path(__file__).parent / "pricing.json"
 
 
+class LongPromptPrice(BaseModel):
+    """Prices for a request whose prompt is over `above_input_tokens` (all input
+    tokens, cache reads and writes included). The whole request pays them."""
+
+    above_input_tokens: int
+    input: float
+    output: float
+    cache_read: float
+    cache_write: float
+
+
 class ModelPrice(BaseModel):
     """USD per million tokens."""
 
@@ -23,8 +34,17 @@ class ModelPrice(BaseModel):
     cache_read: float
     cache_write: float
     tool_prompt_tokens: int | None = None
+    long_prompt: LongPromptPrice | None = None
     source: str
     checked: str
+
+    def for_prompt(self, input_tokens: int) -> "ModelPrice":
+        """The prices a request with this many input tokens pays."""
+        long = self.long_prompt
+        if long is None or input_tokens <= long.above_input_tokens:
+            return self
+        rates = long.model_dump(exclude={"above_input_tokens"})
+        return self.model_copy(update={**rates, "long_prompt": None})
 
 
 class Pricing(BaseModel):
@@ -50,10 +70,17 @@ _PROVIDER_PREFIX = re.compile(r"^(?:[a-z]{2,4}\.)?(?:anthropic|openai|meta|mistr
 
 
 def _model_names(model: str) -> list[str]:
-    """The ID as given, then without a router's or cloud's prefix."""
+    """The ID as given, then without a router's or cloud's prefix, then with a
+    version's dot as a dash: routers like OpenRouter write claude-haiku-5.5 for
+    Anthropic's claude-haiku-5-5. Only for Claude: OpenAI's own IDs use dots, and
+    an unknown gpt-5.7 must not turn into gpt-5-7 and take gpt-5's price."""
     bare = model.rsplit("/", 1)[-1].replace("@", "-")
     bare = _PROVIDER_PREFIX.sub("", bare)
-    return [model] if bare == model else [model, bare]
+    dashed = _VERSION_DOT.sub("-", bare) if bare.startswith("claude") else bare
+    return list(dict.fromkeys([model, bare, dashed]))
+
+
+_VERSION_DOT = re.compile(r"(?<=\d)\.(?=\d)")
 
 
 def load_pricing(path: Path) -> Pricing:
