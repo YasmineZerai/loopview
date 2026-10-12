@@ -91,7 +91,7 @@ export function ToolsView() {
         {state === 'failed' && <Note>Couldn't load the tools report. Is the loopview server still running?</Note>}
         {state === 'no-runs' && <Note>No runs yet.</Note>}
         {state === 'no-calls' && <Note>No finished tool calls in {scope === 'session' ? 'this session' : 'these runs'} yet.</Note>}
-        {STATIC_DEMO && <DemoIntro />}
+        {STATIC_DEMO && <DemoIntro about={report?.about} />}
         {state === 'ready' && (
           <>
             <Findings report={report!} />
@@ -122,12 +122,18 @@ function Headline({ text }: { text: string }) {
 }
 
 /** In the demo: what these numbers are computed from, and what to do with them. */
-function DemoIntro() {
+function DemoIntro({ about }: { about?: ToolsReport['about'] }) {
   return (
     <p className="mt-3 max-w-[760px] text-[12.5px] leading-relaxed text-muted">
-      A trace shows one run; this tab reads all of them. Here: the five examples, plus 20 read-only tasks a Pydantic AI agent
-      ran against GitHub's official MCP server. Click a tool to see its errors, what the agent did next, and to open any call
-      in its run.
+      A trace shows one run; this tab reads all of them.{' '}
+      {about ? (
+        <>
+          <span className="font-medium text-text">{about.title}.</span> {about.summary}
+        </>
+      ) : (
+        'Here: the examples in the run list.'
+      )}{' '}
+      Click a tool to see its errors and what the agent did next.
     </p>
   )
 }
@@ -293,7 +299,7 @@ function ToolDetail({ tool }: { tool: ToolStats }) {
               For example: <span className="break-words text-text">{e.example_message}</span>
             </div>
             <JsonBlock value={e.example_args ?? null} label="Arguments of that call" />
-            <StepLink stepRef={e.step_ref} label="Show this call in the graph" />
+            {e.step_ref && <StepLink stepRef={e.step_ref} label="Show this call in the graph" />}
           </div>
         ))}
       </div>

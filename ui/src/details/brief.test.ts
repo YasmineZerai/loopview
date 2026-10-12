@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import failingJson from '../test-data/failing_tools_pydantic.json'
 import flagshipJson from '../test-data/flagship.json'
+import issuescoutJson from '../test-data/issuescout_team.json'
 import multiAgentJson from '../test-data/multi_agent_pydantic.json'
 import routerJson from '../test-data/langgraph_router.json'
 import type { ModelCall, NormalizedRun, Step } from '../types'
@@ -10,6 +11,7 @@ const failing = failingJson as unknown as NormalizedRun
 const flagship = flagshipJson as unknown as NormalizedRun
 const multiAgent = multiAgentJson as unknown as NormalizedRun
 const router = routerJson as unknown as NormalizedRun
+const issuescout = issuescoutJson as unknown as NormalizedRun
 
 const step = (run: NormalizedRun, name: string, kind: Step['kind'] = 'agent') =>
   run.steps.find((s) => s.name === name && s.kind === kind && !s.hidden && !s.synthetic)!
@@ -41,7 +43,7 @@ describe('which calls belong to a step', () => {
   })
 
   it('gives every recorded agent something to show, its own calls or its sub-agents', () => {
-    for (const run of [failing, flagship, multiAgent, router]) {
+    for (const run of [failing, flagship, multiAgent, router, issuescout]) {
       for (const agent of run.steps.filter((s) => s.kind === 'agent' && !s.synthetic && !s.hidden)) {
         const own = callsOf(agent, run.steps)
         const shown = own.length ? own : allCallsIn(agent, run.steps)

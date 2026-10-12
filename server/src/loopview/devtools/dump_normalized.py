@@ -8,12 +8,13 @@ Most fixtures hold one run and become `<name>.json`. A fixture with several runs
 (the MCP tools study) becomes `<name>-01.json`, `<name>-02.json`... but only for
 the demo (--index): the UI tests don't use them, and they are several MB.
 
-With --index (the demo), only the fixtures in DEMO_RUNS and DEMO_TOOLS_ONLY are
-written. index.json lists each run file with its RunInfo, so the demo can show
-the run list without downloading every run. DEMO_RUNS are the curated examples
-shown in the run list, each with a short description of the agent and its task;
-DEMO_TOOLS_ONLY runs are not listed but feed the Tools tab, whose links can still
-open them. Without --index, tools.json covers every fixture.
+With --index (the demo), only the fixtures in DEMO_RUNS are written: the curated
+examples shown in the run list, each with a short description of the agent and its
+task. index.json lists each run file with its RunInfo, so the demo can show the run
+list without downloading every run. The demo's tools.json is not computed from them:
+it is the snapshot of a real app's 78 runs (DEMO_TOOLS_SNAPSHOT, written by
+tools_snapshot.py), with a note saying so. Without --index, tools.json covers every
+fixture.
 
 Usage (from server/):
     uv run python -m loopview.devtools.dump_normalized ../ui/src/test-data
@@ -33,7 +34,6 @@ from loopview.tools.report import tools_report
 
 REPO = Path(__file__).resolve().parents[4]
 FIXTURES = REPO / "fixtures"
-MCP_STUDY_TASKS = REPO / "examples" / "mcp_tools_study_tasks.txt"
 
 # The examples the hosted demo lists, in order, with what the demo says about each.
 # `prompt` is the task the agent was given, as written in the example's source.
@@ -57,6 +57,30 @@ DEMO_RUNS: dict[str, dict[str, Any]] = {
             "fetch_repo_stats failing on its first call, then the retry",
             "the critic's loop back to synthesize, then the handoff to the writer",
             "the Cost tab: a 4,300-token handbook read from the prompt cache",
+        ],
+    },
+    "issuescout_team": {
+        "title": "Bug triage team (a real app)",
+        "framework": "Pydantic AI + 3 MCP servers",
+        "source": "fixtures/issuescout_team.otlp.jsonl",
+        "summary": (
+            "One of 78 runs of issuescout, an app that triages bug reports. A supervisor reads "
+            "the issue and plans; a historian, a code detective and a docs checker investigate "
+            "in parallel with the GitHub, DeepWiki and Context7 MCP servers; a writer ranks the "
+            "files most likely to hold the bug. The Tools tab covers all 78 runs."
+        ),
+        "prompt": (
+            'Triage langchain-ai/langgraph#8550, "SQLite delta history skips parent checkpoints '
+            'with non-monotonic IDs": find the source files most likely to contain the bug, '
+            "related issues, pull requests and commits, and what the docs say. (The issue's "
+            "full text is in the supervisor's model call.)"
+        ),
+        "look_for": [
+            "the fan-out to three investigators, each on its own MCP servers",
+            "the historian's search_commits failing (a reply over the MCP stream's 1 MB "
+            "limit), then the retry that worked",
+            "click an agent for its task, its answer and its instructions",
+            "the Tools tab: what the agents did after 33 tool errors in 78 runs",
         ],
     },
     "multi_agent_pydantic": {
@@ -132,31 +156,18 @@ DEMO_RUNS: dict[str, dict[str, Any]] = {
         ],
     },
 }
-# Not listed (20 short tasks against GitHub's MCP server), but the Tools tab is built on them.
-DEMO_TOOLS_ONLY = ["mcp_tools_study"]
-
-
-def tools_only_about(name: str, run: NormalizedRun) -> dict[str, Any] | None:
-    """What the demo says about an unlisted run that a Tools tab link opened."""
-    if name != "mcp_tools_study" or not run.run.name.startswith("task "):
-        return None  # the study's first run only opens the MCP connection
-    lines = MCP_STUDY_TASKS.read_text(encoding="utf-8").splitlines()
-    tasks = [line for line in lines if line.strip() and not line.startswith("#")]
-    number = int(run.run.name.removeprefix("task "))
-    return {
-        "title": f"GitHub MCP study, task {number}",
-        "framework": "Pydantic AI + GitHub MCP",
-        "source": "examples/mcp_tools_study.py",
-        "summary": (
-            "One of 20 read-only questions a Pydantic AI agent answered with the tools of GitHub's "
-            "official MCP server. Together, these runs feed the Tools tab."
-        ),
-        "prompt": tasks[number - 1],
-        "look_for": [
-            "which of the server's many tools the model picks",
-            "how big the tool results are, in the Cost tab",
-        ],
-    }
+# The demo's Tools tab: the report over a recording too big to ship (78 runs of a
+# real app), saved by tools_snapshot.py, and what the demo says about it.
+DEMO_TOOLS_SNAPSHOT = FIXTURES / "issuescout_pilot.tools.json"
+DEMO_TOOLS_ABOUT = {
+    "title": "78 runs of issuescout",
+    "summary": (
+        "issuescout triages bug reports in real repositories (uv, Pydantic AI, LangGraph, the "
+        "OpenAI Agents SDK) with three MCP servers: GitHub, DeepWiki and Context7. It ran 78 "
+        "times, alone or as a team, on Claude Haiku 5.5. This tab sums up all 78 runs; one of "
+        "them, the bug triage team, is in the run list, and its calls open from here."
+    ),
+}
 
 
 def main() -> None:
@@ -167,7 +178,7 @@ def main() -> None:
     index: list[tuple[int, str, NormalizedRun, str]] = []  # (demo position, file, run, fixture)
     for fixture in sorted(FIXTURES.glob("*.otlp.jsonl")):
         name = fixture.name.removesuffix(".otlp.jsonl")
-        if demo and name not in DEMO_RUNS and name not in DEMO_TOOLS_ONLY:
+        if demo and name not in DEMO_RUNS:
             continue
         store = TraceStore()
         load_capture(store, fixture)
@@ -185,12 +196,15 @@ def main() -> None:
             (out / file).write_text(normalized.model_dump_json(), encoding="utf-8")
             index.append((position, file, normalized, name))
         print(f"wrote {name} ({len(runs)} run{'s' if len(runs) > 1 else ''})")
-    (out / "tools.json").write_text(json.dumps(tools_report(all_runs)), encoding="utf-8")
+    if demo:
+        report = json.loads(DEMO_TOOLS_SNAPSHOT.read_text(encoding="utf-8"))
+        report["about"] = DEMO_TOOLS_ABOUT
+    else:
+        report = tools_report(all_runs)
+    (out / "tools.json").write_text(json.dumps(report), encoding="utf-8")
     print("wrote tools.json")
     if demo:
-        missing = [
-            name for name in [*DEMO_RUNS, *DEMO_TOOLS_ONLY] if not any(e[3] == name for e in index)
-        ]
+        missing = [name for name in DEMO_RUNS if not any(e[3] == name for e in index)]
         if missing:
             sys.exit(f"no fixture for {', '.join(missing)}")
         index.sort(key=lambda entry: entry[0])  # stable: a fixture's runs keep their order
@@ -198,8 +212,8 @@ def main() -> None:
             {
                 "file": file,
                 "run": n.run.model_dump(mode="json"),
-                "listed": name in DEMO_RUNS,
-                "about": DEMO_RUNS.get(name) or tools_only_about(name, n),
+                "listed": True,
+                "about": DEMO_RUNS[name],
             }
             for _, file, n, name in index
         ]

@@ -22,6 +22,7 @@ through the receiver reproduces the run, including the batching timing.
 | `openai_agents_sdk.otlp.jsonl` | `examples/compat/openai_agents_sdk.py` (on Claude via LiteLLM) | openai-agents 0.23.1, openinference-instrumentation-openai-agents 2.5.2 |
 | `crewai.otlp.jsonl` | `examples/compat_crewai/weather_crew.py`, with `loopview_sdk.connect()` | crewai 1.15.23, openinference-instrumentation-crewai 1.1.20, opentelemetry-instrumentation-anthropic 0.62.4 |
 | `failing_tools_pydantic.otlp.jsonl` | `examples/failing_tools_pydantic.py` | pydantic-ai-slim 2.52.0, fastmcp-slim 4.0.10 (in-process MCP server) |
+| `issuescout_team.otlp.jsonl` | one run of issuescout, an app outside this repository (see below) | pydantic-ai 2.55.0, the MCP Python SDK and fastmcp (GitHub, DeepWiki and Context7 servers), opentelemetry-sdk 1.45.1 |
 
 All recorded with `claude-haiku-4-5-20251001`. `react_anthropic` and `flagship` use
 extended thinking, so they include the model's reasoning. Re-record with
@@ -38,3 +39,11 @@ more run holds only the MCP connection, which this recording opened before the f
 script now connects inside each task). It was recorded with `--persist`, which writes the same
 format. It is real GitHub content, so it is large (10 MB); the hosted demo loads its runs only
 when they are opened.
+
+`issuescout_team` is the one fixture not recorded from this repository's examples: a real app
+that triages bug reports, run 78 times on `anthropic/claude-haiku-5.5` through OpenRouter. One
+team run was copied out of that recording with `loopview.devtools.extract_run`, unchanged except
+for the user's home folder in stack traces (`--redact`), so it normalizes exactly as it did in
+the full recording. The recording itself (144 MB) is not in the repository; its Tools tab report
+is, as `issuescout_pilot.tools.json` (written by `loopview.devtools.tools_snapshot`, with links
+kept only into the team run). The hosted demo shows that report.

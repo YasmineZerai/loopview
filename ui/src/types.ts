@@ -165,7 +165,7 @@ export interface ToolStats {
   errors: number
   error_rate: number
   after_error: AfterError
-  top_errors: { message_group: string; count: number; example_args: unknown; example_message: string; step_ref: StepRef }[]
+  top_errors: { message_group: string; count: number; example_args: unknown; example_message: string; step_ref: StepRef | null }[] // null: the run isn't available (the hosted demo's snapshot)
   confused_with: { tool: string; count: number }[]
   avg_result_tokens_estimate: number | null
   step_refs: StepRef[]
@@ -192,4 +192,6 @@ export interface ToolsReport {
   tools: ToolStats[]
   never_called: { name: string; definition_tokens_estimate: number; carried_by_model_calls: number }[]
   tool_list_recorded: boolean
+  // The hosted demo only: what the report covers, when it isn't the listed runs.
+  about?: { title: string; summary: string }
 }

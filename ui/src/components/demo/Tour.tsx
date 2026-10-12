@@ -566,7 +566,7 @@ const STEPS: Step[] = [
         </Item>
       </Legend>
     ),
-    footer: 'Built from the examples plus 20 tasks on GitHub’s real MCP server.',
+    footer: 'Built from 78 runs of a real app on three MCP servers (GitHub, DeepWiki, Context7).',
     enter: () => scene({ view: 'tools', activity: true }),
   },
   {

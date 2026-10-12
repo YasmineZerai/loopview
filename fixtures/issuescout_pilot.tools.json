@@ -1,0 +1,601 @@
+{
+ "summary": {
+  "runs": 78,
+  "tool_calls": 782,
+  "errors": 33,
+  "share_of_errors_from_top_2_tools": 0.667,
+  "never_called_count": 18,
+  "never_called_tokens_estimate": 2118429,
+  "never_called_tokens_per_run_estimate": 27159,
+  "estimates": {
+   "definition_calls_scaled": 224,
+   "definition_calls_unscaled": 227,
+   "results_scaled": 308,
+   "results_unscaled": 441
+  }
+ },
+ "tools": [
+  {
+   "name": "get_file_contents",
+   "calls": 220,
+   "errors": 15,
+   "error_rate": 0.068,
+   "after_error": {
+    "blind_retry": 0,
+    "fixed": 8,
+    "fixed_succeeded": 7,
+    "switched": 2,
+    "gave_up": 5
+   },
+   "top_errors": [
+    {
+     "message_group": "pydantic_ai.exceptions.ToolRetryError: Failed to get file contents. The path does not point to a file or directory, or the file does not exist in the repository.",
+     "count": 12,
+     "example_args": {
+      "owner": "astral-sh",
+      "repo": "uv",
+      "path": "crates/uv-platform-tags/src/platform_tags.rs",
+      "ref": "7b090fba99bc89a6670a23de5368d48d2418a756"
+     },
+     "example_message": "pydantic_ai.exceptions.ToolRetryError: Failed to get file contents. The path does not point to a file or directory, or the file does not exist in the repository.",
+     "step_ref": null
+    },
+    {
+     "message_group": "pydantic_ai.exceptions.ToolRetryError: Connection closed",
+     "count": 2,
+     "example_args": {
+      "owner": "astral-sh",
+      "repo": "uv",
+      "path": "crates/uv-fs/src/link.rs",
+      "ref": "44b2e5877ef752e360acc02c7d198ba71ddf948d"
+     },
+     "example_message": "pydantic_ai.exceptions.ToolRetryError: Connection closed",
+     "step_ref": null
+    },
+    {
+     "message_group": "asyncio.exceptions.CancelledError",
+     "count": 1,
+     "example_args": {
+      "owner": "astral-sh",
+      "repo": "uv",
+      "path": "crates/uv-platform-tags/src",
+      "sha": "7b090fba99bc89a6670a23de5368d48d2418a756",
+      "fields": [
+       "name",
+       "path",
+       "type"
+      ]
+     },
+     "example_message": "asyncio.exceptions.CancelledError",
+     "step_ref": null
+    }
+   ],
+   "confused_with": [],
+   "avg_result_tokens_estimate": 19437,
+   "step_refs": [
+    {
+     "run_id": "f36403e92164c7ec737f55125bb862d5",
+     "step_id": "4843fc90eb878eab"
+    },
+    {
+     "run_id": "f36403e92164c7ec737f55125bb862d5",
+     "step_id": "b3bb820b397593ce"
+    },
+    {
+     "run_id": "f36403e92164c7ec737f55125bb862d5",
+     "step_id": "7564e8f93d389055"
+    },
+    {
+     "run_id": "f36403e92164c7ec737f55125bb862d5",
+     "step_id": "e4554f008cf7f0f6"
+    },
+    {
+     "run_id": "f36403e92164c7ec737f55125bb862d5",
+     "step_id": "fded0b7a9b8764bb"
+    }
+   ]
+  },
+  {
+   "name": "search_code",
+   "calls": 103,
+   "errors": 7,
+   "error_rate": 0.068,
+   "after_error": {
+    "blind_retry": 0,
+    "fixed": 4,
+    "fixed_succeeded": 1,
+    "switched": 2,
+    "gave_up": 1
+   },
+   "top_errors": [
+    {
+     "message_group": "pydantic_ai.exceptions.ToolRetryError: failed to search code with query <value>: GitHub API rate limit exceeded. Retry after <n>s.",
+     "count": 5,
+     "example_args": {
+      "query": "netbsd repo:astral-sh/uv path:crates",
+      "perPage": 30
+     },
+     "example_message": "pydantic_ai.exceptions.ToolRetryError: failed to search code with query 'netbsd repo:astral-sh/uv path:crates': GitHub API rate limit exceeded. Retry after 13s.",
+     "step_ref": null
+    },
+    {
+     "message_group": "pydantic_ai.exceptions.ToolRetryError: failed to search code with query <value>: ERROR_TYPE_QUERY_PARSING_FATAL unable to parse query!",
+     "count": 1,
+     "example_args": {
+      "query": "--overrides repo:pydantic/pydantic-ai"
+     },
+     "example_message": "pydantic_ai.exceptions.ToolRetryError: failed to search code with query '--overrides repo:pydantic/pydantic-ai': ERROR_TYPE_QUERY_PARSING_FATAL unable to parse query!",
+     "step_ref": null
+    },
+    {
+     "message_group": "pydantic_ai.exceptions.UnexpectedModelBehavior: Tool 'search_code' exceeded max retries count of <n>. Consider raising the retry limit, or see the docs on tool retries: https://pydantic.dev/docs/ai/to",
+     "count": 1,
+     "example_args": {
+      "query": "netbsd repo:astral-sh/uv path:crates/uv-platform-tags",
+      "fields": [
+       "name",
+       "path"
+      ]
+     },
+     "example_message": "pydantic_ai.exceptions.UnexpectedModelBehavior: Tool 'search_code' exceeded max retries count of 2. Consider raising the retry limit, or see the docs on tool retries: https://pydantic.dev/docs/ai/tools-toolsets/tools-advanced/#tool-retries",
+     "step_ref": null
+    }
+   ],
+   "confused_with": [
+    {
+     "tool": "get_file_contents",
+     "count": 2
+    }
+   ],
+   "avg_result_tokens_estimate": 1720,
+   "step_refs": [
+    {
+     "run_id": "f36403e92164c7ec737f55125bb862d5",
+     "step_id": "43f533d1e9ada5b7"
+    },
+    {
+     "run_id": "f36403e92164c7ec737f55125bb862d5",
+     "step_id": "030398893ffca1e7"
+    }
+   ]
+  },
+  {
+   "name": "read_wiki_contents",
+   "calls": 4,
+   "errors": 4,
+   "error_rate": 1.0,
+   "after_error": {
+    "blind_retry": 0,
+    "fixed": 0,
+    "fixed_succeeded": 0,
+    "switched": 3,
+    "gave_up": 1
+   },
+   "top_errors": [
+    {
+     "message_group": "pydantic_ai.exceptions.ToolRetryError: SSE stream failed: Server-sent event exceeded the <n> byte limit.",
+     "count": 4,
+     "example_args": {
+      "repoName": "astral-sh/uv"
+     },
+     "example_message": "pydantic_ai.exceptions.ToolRetryError: SSE stream failed: Server-sent event exceeded the 1048576 byte limit.",
+     "step_ref": null
+    }
+   ],
+   "confused_with": [
+    {
+     "tool": "query-docs",
+     "count": 2
+    }
+   ],
+   "avg_result_tokens_estimate": null,
+   "step_refs": []
+  },
+  {
+   "name": "search_issues",
+   "calls": 108,
+   "errors": 3,
+   "error_rate": 0.028,
+   "after_error": {
+    "blind_retry": 0,
+    "fixed": 1,
+    "fixed_succeeded": 1,
+    "switched": 2,
+    "gave_up": 0
+   },
+   "top_errors": [
+    {
+     "message_group": "pydantic_ai.exceptions.ToolRetryError: failed to search issues: GET https://api.github.com/search/issues?page=<n>&per_page=<n>&q=is%<n>Aissue+repo%<n>Aastral-sh%<n>Fuv+created%<n>A%<n>C<n>-<n>-<n>+tra",
+     "count": 1,
+     "example_args": {
+      "query": "repo:astral-sh/uv created:<2026-09-30 tracking issue uv audit",
+      "owner": "astral-sh",
+      "repo": "uv",
+      "fields": [
+       "number",
+       "title",
+       "state",
+       "html_url",
+       "created_at"
+      ]
+     },
+     "example_message": "pydantic_ai.exceptions.ToolRetryError: failed to search issues: GET https://api.github.com/search/issues?page=1&per_page=30&q=is%3Aissue+repo%3Aastral-sh%2Fuv+created%3A%3C2026-09-30+tracking+issue+uv+audit&search_type=semantic: 403 API rate limit exceeded for user ID 147926652. If you reach out to GitHub Support for help, please include the request ID C827:F4AB9:2BC6DAE:33B6A05:6ACBA2C6 and timestamp 2026-10-11 14:52:55 UTC. For more on scraping GitHub and how it may affect your rights, please review our Terms of Service (https://docs.github.com/en/site-policy/github-terms/github-terms-of-service) [rate reset in 0s]",
+     "step_ref": null
+    },
+    {
+     "message_group": "pydantic_ai.exceptions.ToolRetryError: failed to search issues: GET https://api.github.com/search/issues?page=<n>&per_page=<n>&q=is%<n>Aissue+repo%<n>Alangchain-ai%<n>Flanggraph+created%<n>A%<n>C<n>-<",
+     "count": 1,
+     "example_args": {
+      "query": "repo:langchain-ai/langgraph created:<2025-12-15 isinstance BaseCheckpointSaver validate checkpointer type",
+      "fields": [
+       "number",
+       "title",
+       "state",
+       "html_url",
+       "created_at"
+      ],
+      "perPage": 10
+     },
+     "example_message": "pydantic_ai.exceptions.ToolRetryError: failed to search issues: GET https://api.github.com/search/issues?page=1&per_page=10&q=is%3Aissue+repo%3Alangchain-ai%2Flanggraph+created%3A%3C2025-12-15+isinstance+BaseCheckpointSaver+validate+checkpointer+type&search_type=semantic: 403 API rate limit exceeded for user ID 147926652. If you reach out to GitHub Support for help, please include the request ID D399:25D211:94D098:C4B323:6ACBA4F9 and timestamp 2026-10-11 15:02:17 UTC. For more on scraping GitHub and how it may affect your rights, please review our Terms of Service (https://docs.github.com/en/site-policy/github-terms/github-terms-of-service) [rate reset in 15s]",
+     "step_ref": null
+    },
+    {
+     "message_group": "pydantic_ai.exceptions.ToolRetryError: failed to search issues: GET https://api.github.com/search/issues?page=<n>&per_page=<n>&q=is%<n>Aissue+stream.abort%<n>%<n>+does+not+stop+subgraphs+event+streami",
+     "count": 1,
+     "example_args": {
+      "query": "stream.abort() does not stop subgraphs event streaming v3 created:<2026-06-09 repo:langchain-ai/langgraph",
+      "fields": [
+       "number",
+       "title",
+       "state",
+       "html_url"
+      ]
+     },
+     "example_message": "pydantic_ai.exceptions.ToolRetryError: failed to search issues: GET https://api.github.com/search/issues?page=1&per_page=30&q=is%3Aissue+stream.abort%28%29+does+not+stop+subgraphs+event+streaming+v3+created%3A%3C2026-06-09+repo%3Alangchain-ai%2Flanggraph&search_type=semantic: 422 Validation Failed [{Resource:Search Field:q Code:invalid Message:The search query contains invalid syntax.}]",
+     "step_ref": null
+    }
+   ],
+   "confused_with": [],
+   "avg_result_tokens_estimate": 3560,
+   "step_refs": [
+    {
+     "run_id": "f36403e92164c7ec737f55125bb862d5",
+     "step_id": "e64629a19d7ba5c9"
+    },
+    {
+     "run_id": "f36403e92164c7ec737f55125bb862d5",
+     "step_id": "47d56964fab53012"
+    }
+   ]
+  },
+  {
+   "name": "search_commits",
+   "calls": 66,
+   "errors": 2,
+   "error_rate": 0.03,
+   "after_error": {
+    "blind_retry": 0,
+    "fixed": 2,
+    "fixed_succeeded": 2,
+    "switched": 0,
+    "gave_up": 0
+   },
+   "top_errors": [
+    {
+     "message_group": "pydantic_ai.exceptions.ToolRetryError: SSE stream failed: Server-sent event exceeded the <n> byte limit.",
+     "count": 2,
+     "example_args": {
+      "query": "repo:langchain-ai/langgraph delta committer-date:<2026-08-06"
+     },
+     "example_message": "pydantic_ai.exceptions.ToolRetryError: SSE stream failed: Server-sent event exceeded the 1048576 byte limit.",
+     "step_ref": {
+      "run_id": "f36403e92164c7ec737f55125bb862d5",
+      "step_id": "59a2096213c19260"
+     }
+    }
+   ],
+   "confused_with": [],
+   "avg_result_tokens_estimate": 12049,
+   "step_refs": [
+    {
+     "run_id": "f36403e92164c7ec737f55125bb862d5",
+     "step_id": "59a2096213c19260"
+    },
+    {
+     "run_id": "f36403e92164c7ec737f55125bb862d5",
+     "step_id": "7f0ebda2b87b6c86"
+    }
+   ]
+  },
+  {
+   "name": "ask_wiki_question",
+   "calls": 52,
+   "errors": 1,
+   "error_rate": 0.019,
+   "after_error": {
+    "blind_retry": 0,
+    "fixed": 0,
+    "fixed_succeeded": 0,
+    "switched": 0,
+    "gave_up": 1
+   },
+   "top_errors": [
+    {
+     "message_group": "pydantic_ai.exceptions.ToolRetryError: SSE stream ended without a response",
+     "count": 1,
+     "example_args": {
+      "repoName": "openai/openai-agents-python",
+      "question": "How does AnyLLMModel work? Which any-llm version range is supported, is multi-turn tool use supported, and is _AnyLLMResponsesParamsShim / _make_any_llm_responses_params documented as public or internal?"
+     },
+     "example_message": "pydantic_ai.exceptions.ToolRetryError: SSE stream ended without a response",
+     "step_ref": null
+    }
+   ],
+   "confused_with": [],
+   "avg_result_tokens_estimate": 834,
+   "step_refs": [
+    {
+     "run_id": "f36403e92164c7ec737f55125bb862d5",
+     "step_id": "f0e0a3652e0fdb06"
+    }
+   ]
+  },
+  {
+   "name": "list_commits",
+   "calls": 51,
+   "errors": 1,
+   "error_rate": 0.02,
+   "after_error": {
+    "blind_retry": 0,
+    "fixed": 1,
+    "fixed_succeeded": 1,
+    "switched": 0,
+    "gave_up": 0
+   },
+   "top_errors": [
+    {
+     "message_group": "pydantic_ai.exceptions.ToolRetryError: SSE stream failed: Server-sent event exceeded the <n> byte limit.",
+     "count": 1,
+     "example_args": {
+      "owner": "langchain-ai",
+      "repo": "langgraph",
+      "sha": "1a9baae9592e0c21336f6e09c891ba75481fd657",
+      "perPage": 30,
+      "fields": [
+       "sha",
+       "html_url",
+       "commit"
+      ]
+     },
+     "example_message": "pydantic_ai.exceptions.ToolRetryError: SSE stream failed: Server-sent event exceeded the 1048576 byte limit.",
+     "step_ref": null
+    }
+   ],
+   "confused_with": [],
+   "avg_result_tokens_estimate": 3184,
+   "step_refs": []
+  },
+  {
+   "name": "search_pull_requests",
+   "calls": 79,
+   "errors": 0,
+   "error_rate": 0.0,
+   "after_error": {
+    "blind_retry": 0,
+    "fixed": 0,
+    "fixed_succeeded": 0,
+    "switched": 0,
+    "gave_up": 0
+   },
+   "top_errors": [],
+   "confused_with": [],
+   "avg_result_tokens_estimate": 5617,
+   "step_refs": [
+    {
+     "run_id": "f36403e92164c7ec737f55125bb862d5",
+     "step_id": "afec46d513aa89fc"
+    }
+   ]
+  },
+  {
+   "name": "query-docs",
+   "calls": 27,
+   "errors": 0,
+   "error_rate": 0.0,
+   "after_error": {
+    "blind_retry": 0,
+    "fixed": 0,
+    "fixed_succeeded": 0,
+    "switched": 0,
+    "gave_up": 0
+   },
+   "top_errors": [],
+   "confused_with": [],
+   "avg_result_tokens_estimate": 1306,
+   "step_refs": [
+    {
+     "run_id": "f36403e92164c7ec737f55125bb862d5",
+     "step_id": "f779f1043666e27d"
+    }
+   ]
+  },
+  {
+   "name": "resolve-library-id",
+   "calls": 23,
+   "errors": 0,
+   "error_rate": 0.0,
+   "after_error": {
+    "blind_retry": 0,
+    "fixed": 0,
+    "fixed_succeeded": 0,
+    "switched": 0,
+    "gave_up": 0
+   },
+   "top_errors": [],
+   "confused_with": [],
+   "avg_result_tokens_estimate": 449,
+   "step_refs": []
+  },
+  {
+   "name": "pull_request_read",
+   "calls": 20,
+   "errors": 0,
+   "error_rate": 0.0,
+   "after_error": {
+    "blind_retry": 0,
+    "fixed": 0,
+    "fixed_succeeded": 0,
+    "switched": 0,
+    "gave_up": 0
+   },
+   "top_errors": [],
+   "confused_with": [],
+   "avg_result_tokens_estimate": 4989,
+   "step_refs": []
+  },
+  {
+   "name": "get_commit",
+   "calls": 16,
+   "errors": 0,
+   "error_rate": 0.0,
+   "after_error": {
+    "blind_retry": 0,
+    "fixed": 0,
+    "fixed_succeeded": 0,
+    "switched": 0,
+    "gave_up": 0
+   },
+   "top_errors": [],
+   "confused_with": [],
+   "avg_result_tokens_estimate": 1249,
+   "step_refs": []
+  },
+  {
+   "name": "issue_read",
+   "calls": 8,
+   "errors": 0,
+   "error_rate": 0.0,
+   "after_error": {
+    "blind_retry": 0,
+    "fixed": 0,
+    "fixed_succeeded": 0,
+    "switched": 0,
+    "gave_up": 0
+   },
+   "top_errors": [],
+   "confused_with": [],
+   "avg_result_tokens_estimate": 1284,
+   "step_refs": []
+  },
+  {
+   "name": "read_wiki_structure",
+   "calls": 5,
+   "errors": 0,
+   "error_rate": 0.0,
+   "after_error": {
+    "blind_retry": 0,
+    "fixed": 0,
+    "fixed_succeeded": 0,
+    "switched": 0,
+    "gave_up": 0
+   },
+   "top_errors": [],
+   "confused_with": [],
+   "avg_result_tokens_estimate": 684,
+   "step_refs": []
+  }
+ ],
+ "never_called": [
+  {
+   "name": "list_issues",
+   "definition_tokens_estimate": 341028,
+   "carried_by_model_calls": 359
+  },
+  {
+   "name": "list_pull_requests",
+   "definition_tokens_estimate": 240425,
+   "carried_by_model_calls": 359
+  },
+  {
+   "name": "run_secret_scanning",
+   "definition_tokens_estimate": 183207,
+   "carried_by_model_calls": 359
+  },
+  {
+   "name": "search_repositories",
+   "definition_tokens_estimate": 180252,
+   "carried_by_model_calls": 359
+  },
+  {
+   "name": "list_repository_collaborators",
+   "definition_tokens_estimate": 147747,
+   "carried_by_model_calls": 359
+  },
+  {
+   "name": "list_releases",
+   "definition_tokens_estimate": 135390,
+   "carried_by_model_calls": 359
+  },
+  {
+   "name": "search_users",
+   "definition_tokens_estimate": 128943,
+   "carried_by_model_calls": 359
+  },
+  {
+   "name": "list_issue_fields",
+   "definition_tokens_estimate": 110542,
+   "carried_by_model_calls": 359
+  },
+  {
+   "name": "list_issue_types",
+   "definition_tokens_estimate": 86634,
+   "carried_by_model_calls": 359
+  },
+  {
+   "name": "list_branches",
+   "definition_tokens_estimate": 81933,
+   "carried_by_model_calls": 359
+  },
+  {
+   "name": "list_tags",
+   "definition_tokens_estimate": 81395,
+   "carried_by_model_calls": 359
+  },
+  {
+   "name": "get_release_by_tag",
+   "definition_tokens_estimate": 66486,
+   "carried_by_model_calls": 359
+  },
+  {
+   "name": "get_label",
+   "definition_tokens_estimate": 65009,
+   "carried_by_model_calls": 359
+  },
+  {
+   "name": "get_tag",
+   "definition_tokens_estimate": 62457,
+   "carried_by_model_calls": 359
+  },
+  {
+   "name": "get_team_members",
+   "definition_tokens_estimate": 61651,
+   "carried_by_model_calls": 359
+  },
+  {
+   "name": "get_latest_release",
+   "definition_tokens_estimate": 53861,
+   "carried_by_model_calls": 359
+  },
+  {
+   "name": "get_teams",
+   "definition_tokens_estimate": 49697,
+   "carried_by_model_calls": 359
+  },
+  {
+   "name": "get_me",
+   "definition_tokens_estimate": 41772,
+   "carried_by_model_calls": 359
+  }
+ ],
+ "tool_list_recorded": true
+}

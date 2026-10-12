@@ -54,14 +54,17 @@ def decode_request(
 
 def decode_body(body: bytes, content_type: str | None) -> list[RawSpan]:
     """Decode an already decompressed body into RawSpans."""
+    return request_to_spans(parse_request(body, content_type))
+
+
+def parse_request(body: bytes, content_type: str | None) -> ExportTraceServiceRequest:
+    """An already decompressed body as the OTLP message, protobuf or JSON."""
     media_type = (content_type or "").split(";")[0].strip().lower()
     if media_type == PROTOBUF:
-        request = _parse_protobuf(body)
-    elif media_type == JSON:
-        request = _parse_json(body)
-    else:
-        raise UnsupportedContentType(f"unsupported content type: {content_type!r}")
-    return request_to_spans(request)
+        return _parse_protobuf(body)
+    if media_type == JSON:
+        return _parse_json(body)
+    raise UnsupportedContentType(f"unsupported content type: {content_type!r}")
 
 
 def encode_success_response(content_type: str | None) -> tuple[bytes, str]:

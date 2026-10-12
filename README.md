@@ -85,7 +85,7 @@ loopview reads **standard OpenTelemetry**. Each framework describes the same thi
   </tr>
 </table>
 
-Or skip the screenshots: [**open the live demo**](https://yasminezerai.github.io/loopview/) in your browser. It replays recorded runs of five example agents, each with the prompt it was given, and a short guided tour shows where to click. Nothing to install.
+Or skip the screenshots: [**open the live demo**](https://yasminezerai.github.io/loopview/) in your browser. It replays recorded runs of six agents, each with the prompt it was given, among them a bug triage team from a real app working with three MCP servers; its Tools tab sums up 78 runs of that app. A short guided tour shows where to click. Nothing to install.
 
 ## Where the money goes
 
