@@ -354,7 +354,7 @@ export function GraphView() {
 
   return (
     <div ref={container} className="relative h-full w-full">
-    {!hintSeen && <DetailsHint />}
+    {!hintSeen && view === 'graph' && <DetailsHint />}
     <ReactFlow
       nodes={nodes}
       edges={edges}
